@@ -1,0 +1,23 @@
+@scope (.counter) {
+	:scope {
+		position: absolute;
+		inset: 0;
+		align-items: center;
+		justify-content: center;
+		gap: 1rem;
+		background-color: #1e1e28;
+	}
+
+	.label {
+		color: #ffffff;
+	}
+
+	.button {
+		padding: 0.5rem;
+		background-color: #3a6df0;
+
+		&:hover {
+			background-color: #5a8dff;
+		}
+	}
+}

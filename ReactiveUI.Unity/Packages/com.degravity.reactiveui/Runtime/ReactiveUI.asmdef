@@ -1,0 +1,22 @@
+{
+    "name": "ReactiveUI",
+    "rootNamespace": "ReactiveUI",
+    "references": [
+        "ReactiveUI.Yoga",
+        "Unity.InputSystem",
+        "PrimeTween.Runtime",
+        "Unity.TextMeshPro",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "IsExternalInit.System.Runtime.CompilerServices.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

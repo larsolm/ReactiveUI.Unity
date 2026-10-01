@@ -1,0 +1,10 @@
+<Project>
+	<!--
+		Build-time code for com.degravity.reactiveui. Anything Unity cannot compile itself — the CSS
+		parser and the Roslyn generators — is built here and copied into the package, so the package
+		stays installable from a git URL with no build step on the consumer's side.
+	-->
+	<PropertyGroup>
+		<UnityPackageDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', 'ReactiveUI.Unity', 'Packages', 'com.degravity.reactiveui'))</UnityPackageDir>
+	</PropertyGroup>
+</Project>

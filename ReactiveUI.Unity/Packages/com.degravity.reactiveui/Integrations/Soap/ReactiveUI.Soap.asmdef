@@ -1,0 +1,19 @@
+{
+    "name": "ReactiveUI.Soap",
+    "rootNamespace": "ReactiveUI.Soap",
+    "references": [
+        "ReactiveUI",
+        "Obvious.Soap"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "REACTIVEUI_SOAP"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

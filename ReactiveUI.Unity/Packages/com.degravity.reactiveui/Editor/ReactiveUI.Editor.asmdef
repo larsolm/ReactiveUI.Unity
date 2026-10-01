@@ -1,0 +1,21 @@
+{
+    "name": "ReactiveUI.Editor",
+    "rootNamespace": "ReactiveUI.Editor",
+    "references": [
+        "ReactiveUI",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "ReactiveUI.ExCSS.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,15 @@
+<Project>
+	<!--
+		A project opts in by setting UnityPackagePath (the folder inside the package to copy into) and
+		UnityTargetFramework (which of its target frameworks Unity consumes). Release builds only, so an
+		everyday Debug build never rewrites a DLL the editor has loaded.
+	-->
+	<Target Name="CopyToUnity"
+			AfterTargets="Build"
+			Condition="'$(Configuration)' == 'Release' and '$(UnityPackagePath)' != '' and '$(TargetFramework)' == '$(UnityTargetFramework)'">
+		<Copy SourceFiles="$(TargetPath)"
+			  DestinationFolder="$(UnityPackageDir)$(UnityPackagePath)"
+			  SkipUnchangedFiles="true" />
+		<Message Importance="high" Text="$(TargetFileName) -> $(UnityPackageDir)$(UnityPackagePath)" />
+	</Target>
+</Project>

@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Vendored fork of ExCSS (https://github.com/TylerBrinks/ExCSS, MIT). Built as ReactiveUI.ExCSS
+		so it cannot collide with another package's ExCSS.dll in the same Unity project — Unity refuses
+		two precompiled assemblies with the same name. The namespace stays ExCSS.
+
+		netstandard2.1 is what Unity consumes; net8.0 is for the test project.
+	-->
+	<PropertyGroup>
+		<LangVersion>9.0</LangVersion>
+		<TargetFrameworks>netstandard2.1;net8.0</TargetFrameworks>
+		<AssemblyName>ReactiveUI.ExCSS</AssemblyName>
+		<RootNamespace>ExCSS</RootNamespace>
+		<IsPackable>false</IsPackable>
+		<GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+		<GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+		<GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+		<SignAssembly>true</SignAssembly>
+		<AssemblyOriginatorKeyFile>ExCSS.snk</AssemblyOriginatorKeyFile>
+		<Deterministic>true</Deterministic>
+
+		<UnityPackagePath>Editor/Plugins/</UnityPackagePath>
+		<UnityTargetFramework>netstandard2.1</UnityTargetFramework>
+	</PropertyGroup>
+
+	<!-- Trimming parameters -->
+	<PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))">
+		<IsTrimmable>true</IsTrimmable>
+		<SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+	</PropertyGroup>
+	<!-- AOT parameters -->
+	<PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+		<IsAotCompatible>true</IsAotCompatible>
+		<EnableAotAnalyzer>true</EnableAotAnalyzer>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Remove="ExCSS.snk" />
+	</ItemGroup>
+
+</Project>

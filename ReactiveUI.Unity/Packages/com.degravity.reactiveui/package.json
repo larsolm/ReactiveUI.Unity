@@ -1,0 +1,29 @@
+{
+  "name": "com.degravity.reactiveui",
+  "version": "0.1.0",
+  "displayName": "ReactiveUI",
+  "description": "A React-style UI framework for Unity uGUI: components and hooks in C#, flexbox layout through Yoga, and styling from CSS files that hot-reload in Play Mode.",
+  "unity": "6000.6",
+  "author": {
+    "name": "DeGravity"
+  },
+  "license": "MIT",
+  "licensesUrl": "https://github.com/larsolm/ReactiveUI.Unity/blob/main/LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/larsolm/ReactiveUI.Unity.git"
+  },
+  "keywords": [
+    "ui",
+    "react",
+    "ugui",
+    "flexbox",
+    "css"
+  ],
+  "dependencies": {
+    "com.unity.ugui": "2.0.0",
+    "com.unity.inputsystem": "1.14.0",
+    "com.kyrylokuzyk.primetween": "1.4.11",
+    "games.corundum.isexternalinit": "1.0.0"
+  }
+}

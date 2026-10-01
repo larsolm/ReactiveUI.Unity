@@ -1,0 +1,16 @@
+{
+  "sdk": {
+    "version": "10.0.100",
+    "rollForward": "latestFeature"
+  },
+  "scriptShell": "pwsh",
+  "scripts": {
+    "restore": "dotnet restore ReactiveUI/ReactiveUI.slnx",
+    "build": "dotnet build ReactiveUI/ReactiveUI.slnx",
+    "test": "dotnet test ReactiveUI/ReactiveUI.slnx",
+    "test:excss": "dotnet test ReactiveUI/ExCSS/src/ExCSS.Tests",
+    "test:generators": "dotnet test ReactiveUI/ReactiveUI.Generators.Tests",
+    "watch:generators": "dotnet watch test --project ReactiveUI/ReactiveUI.Generators.Tests",
+    "clean": "dotnet clean ReactiveUI/ReactiveUI.slnx -c Debug && dotnet clean ReactiveUI/ReactiveUI.slnx -c Release"
+  }
+}

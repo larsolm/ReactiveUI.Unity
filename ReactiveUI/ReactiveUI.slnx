@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/ExCSS/">
+    <Project Path="ExCSS/src/ExCSS/ExCSS.csproj" />
+    <Project Path="ExCSS/src/ExCSS.Tests/ExCSS.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Generators/">
+    <Project Path="ReactiveUI.Generators/ReactiveUI.Generators.csproj" />
+    <Project Path="ReactiveUI.Generators.Tests/ReactiveUI.Generators.Tests.csproj" />
+  </Folder>
+</Solution>
