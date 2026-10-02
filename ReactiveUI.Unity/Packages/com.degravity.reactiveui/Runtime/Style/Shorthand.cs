@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Unity.Scripting.LifecycleManagement;
 using UnityEngine;
 
@@ -930,7 +931,7 @@ namespace ReactiveUI
 					name = name.Substring(0, comma);
 
 				if (!scope.TryGetValue(ClassTable.Intern(name.Trim()), out var token)
-					|| token.Reference is not string piece
+					|| !TryWrite(token, out var piece)
 					|| !TrySubstitute(piece, scope, depth + 1, out piece))
 				{
 					return false;
@@ -944,6 +945,41 @@ namespace ReactiveUI
 			result = builder.Append(text, copied, text.Length - copied).ToString();
 
 			return true;
+		}
+
+		/// <summary>
+		/// A custom property as CSS text. One kept whole arrives as its text; a single length or number
+		/// was parsed when the sheet was built and is written back out.
+		/// </summary>
+		private static bool TryWrite(in StyleValue token, out string text)
+		{
+			var invariant = CultureInfo.InvariantCulture;
+
+			switch (token.Kind)
+			{
+				case StyleValueKind.Reference when token.Reference is string whole:
+					text = whole;
+					return true;
+
+				case StyleValueKind.Length:
+					var length = token.AsLength();
+					text = length.Unit switch
+					{
+						LengthUnit.Auto => "auto",
+						LengthUnit.Percent => length.Value.ToString(invariant) + "%",
+						LengthUnit.Rem => length.Value.ToString(invariant) + "rem",
+						_ => length.Value.ToString(invariant) + "px",
+					};
+					return true;
+
+				case StyleValueKind.Number:
+					text = token.AsNumber().ToString(invariant);
+					return true;
+
+				default:
+					text = string.Empty;
+					return false;
+			}
 		}
 
 		private static int MatchingParen(string text, int open)
