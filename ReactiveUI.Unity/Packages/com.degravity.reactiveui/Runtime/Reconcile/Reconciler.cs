@@ -834,7 +834,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Brings every host below <paramref name="changed"/> up to date with what it now cascades
+		/// Brings every host below <paramref name="instance"/> up to date with what it now cascades
 		/// from, whether or not the component that owns it re-renders.
 		/// </summary>
 		/// <remarks>

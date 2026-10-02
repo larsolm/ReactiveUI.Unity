@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace ReactiveUI
 {
-	public enum GradientKind
+	internal enum GradientKind
 	{
 		/// <summary>
 		/// A directional gradient along an angle (0° = upward, 90° = rightward).
@@ -20,7 +20,7 @@ namespace ReactiveUI
 	/// <summary>
 	/// A colour stop at a normalized (0..1) position along a gradient.
 	/// </summary>
-	public readonly struct GradientStop : IEquatable<GradientStop>
+	internal readonly struct GradientStop : IEquatable<GradientStop>
 	{
 		public Color Color => _ink._value;
 
@@ -59,7 +59,7 @@ namespace ReactiveUI
 	/// radial gradients are approximated per-vertex (best used on large, softly-tessellated
 	/// backgrounds). Referenced from a computed style as a background-image value.
 	/// </summary>
-	public sealed class Gradient : IEquatable<Gradient>, IVarDependent
+	internal sealed class Gradient : IEquatable<Gradient>, IVarDependent
 	{
 		bool IVarDependent.HasVars => _hasVars;
 

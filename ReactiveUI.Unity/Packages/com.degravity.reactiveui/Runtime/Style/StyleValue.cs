@@ -4,33 +4,60 @@ using UnityEngine;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// How a <see cref="StyleLength"/> resolves against its container.
+	/// The unit of a <see cref="StyleLength"/>.
 	/// </summary>
 	public enum LengthUnit : byte
 	{
+		/// <summary>Pixels.</summary>
 		Points,
+
+		/// <summary>A percentage of the containing element's size.</summary>
 		Percent,
+
+		/// <summary>A multiple of the root's pixels-per-rem.</summary>
 		Rem,
+
+		/// <summary>Sized automatically by layout.</summary>
 		Auto,
 	}
 
 	/// <summary>
-	/// A CSS length: a number plus the unit it is measured in.
+	/// A CSS length value and its unit.
 	/// </summary>
 	public readonly struct StyleLength : IEquatable<StyleLength>
 	{
+		/// <summary>
+		/// The numeric value.
+		/// </summary>
 		public readonly float Value;
+
+		/// <summary>
+		/// The unit <see cref="Value"/> is measured in.
+		/// </summary>
 		public readonly LengthUnit Unit;
 
+		/// <summary>
+		/// Creates a length of <paramref name="value"/> in <paramref name="unit"/>.
+		/// </summary>
 		public StyleLength(float value, LengthUnit unit = LengthUnit.Points)
 		{
 			Value = value;
 			Unit = unit;
 		}
 
+		/// <summary>
+		/// The <c>auto</c> length.
+		/// </summary>
 		public static StyleLength Auto => new(0f, LengthUnit.Auto);
 
+		/// <summary>
+		/// Converts a pixel value to a length.
+		/// </summary>
 		public static implicit operator StyleLength(float points) => new(points);
+
+		/// <summary>
+		/// Converts a pixel value to a length.
+		/// </summary>
 		public static implicit operator StyleLength(int points) => new(points);
 
 		public bool Equals(StyleLength other)
@@ -65,7 +92,7 @@ namespace ReactiveUI
 	/// <summary>
 	/// What kind of value a <see cref="StyleValue"/> is carrying.
 	/// </summary>
-	public enum StyleValueKind : byte
+	internal enum StyleValueKind : byte
 	{
 		None,
 		Length,
@@ -82,19 +109,16 @@ namespace ReactiveUI
 	}
 
 	/// <summary>
-	/// One resolved property value, in a single fixed-size shape so a computed style is a flat
-	/// array rather than a class with a field per property. Four floats cover a colour or a
-	/// length; <see cref="Reference"/> carries the handful of values that are genuinely objects
-	/// (fonts, sprites, shadow lists).
+	/// A style property value: a length, color, or number.
 	/// </summary>
 	public readonly struct StyleValue : IEquatable<StyleValue>
 	{
-		public readonly float A;
-		public readonly float B;
-		public readonly float C;
-		public readonly float D;
-		public readonly int Tag;
-		public readonly object? Reference;
+		internal readonly float A;
+		internal readonly float B;
+		internal readonly float C;
+		internal readonly float D;
+		internal readonly int Tag;
+		internal readonly object? Reference;
 
 		private StyleValue(float a, float b, float c, float d, int tag, object? reference)
 		{
@@ -106,29 +130,38 @@ namespace ReactiveUI
 			Reference = reference;
 		}
 
-		public StyleValueKind Kind => (StyleValueKind)(Tag & 0xFF);
+		internal StyleValueKind Kind => (StyleValueKind)(Tag & 0xFF);
 
+		/// <summary>
+		/// Creates a length value.
+		/// </summary>
 		public static StyleValue OfLength(StyleLength length)
 		{
 			return new(length.Value, 0f, 0f, 0f, (int)StyleValueKind.Length | ((int)length.Unit << 8), null);
 		}
 
+		/// <summary>
+		/// Creates a color value.
+		/// </summary>
 		public static StyleValue OfColor(Color color)
 		{
 			return new(color.r, color.g, color.b, color.a, (int)StyleValueKind.Color, null);
 		}
 
+		/// <summary>
+		/// Creates a numeric value.
+		/// </summary>
 		public static StyleValue OfNumber(float value)
 		{
 			return new(value, 0f, 0f, 0f, (int)StyleValueKind.Number, null);
 		}
 
-		public static StyleValue OfKeyword(int keyword)
+		internal static StyleValue OfKeyword(int keyword)
 		{
 			return new(0f, 0f, 0f, 0f, (int)StyleValueKind.Keyword | (keyword << 8), null);
 		}
 
-		public static StyleValue OfReference(object? reference)
+		internal static StyleValue OfReference(object? reference)
 		{
 			return new(0f, 0f, 0f, 0f, (int)StyleValueKind.Reference, reference);
 		}
@@ -140,27 +173,32 @@ namespace ReactiveUI
 
 		internal int VarNameId => Tag >> 8;
 
-		// Custom properties are set through a single string indexer, which can only carry one
-		// value type — so the conversions live here instead of as indexer overloads.
+		/// <summary>
+		/// Converts a color to a style value.
+		/// </summary>
 		public static implicit operator StyleValue(Color color) => OfColor(color);
+
+		/// <summary>
+		/// Converts a length to a style value.
+		/// </summary>
 		public static implicit operator StyleValue(StyleLength length) => OfLength(length);
 
-		public StyleLength AsLength()
+		internal StyleLength AsLength()
 		{
 			return new(A, (LengthUnit)((Tag >> 8) & 0xFF));
 		}
 
-		public Color AsColor()
+		internal Color AsColor()
 		{
 			return new(A, B, C, D);
 		}
 
-		public float AsNumber()
+		internal float AsNumber()
 		{
 			return A;
 		}
 
-		public int AsKeyword()
+		internal int AsKeyword()
 		{
 			return Tag >> 8;
 		}

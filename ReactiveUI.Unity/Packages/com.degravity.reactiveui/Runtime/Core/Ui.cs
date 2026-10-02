@@ -1,26 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using Unity.Scripting.LifecycleManagement;
 
 namespace ReactiveUI
 {
 	/// <summary>
-	/// The render surface a component reaches for: the hooks, the children it was given, and
-	/// <see cref="Each{TSource, TState}(IList{TSource}, TState, Func{TSource, TState, Element?})"/>.
+	/// Hooks and render helpers for the component currently rendering.
 	/// </summary>
 	/// <remarks>
-	/// <para>
-	/// Statics resolved against the render currently running, rather than methods inherited from a
-	/// base class: a component is a struct and so has no base class to inherit anything from. Write
-	/// <c>using static ReactiveUI.Ui;</c> at the top of a component file and the call sites read
-	/// exactly as instance methods did.
-	/// </para>
-	/// <para>
-	/// The ambient store is set by the reconciler around a single <c>Render</c> and cleared after it,
-	/// so a hook called anywhere else throws rather than reading someone else's state. That also
-	/// makes a hook valid inside a helper method the render calls, which a component-scoped store
-	/// only ever supported by accident.
-	/// </para>
+	/// Intended for use with <c>using static ReactiveUI.Ui;</c>. Hooks throw when called outside a
+	/// component's <c>Render</c>.
 	/// </remarks>
 	[AutoStaticsCleanup]
 	public static partial class Ui
@@ -58,20 +48,8 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Projects a list into children without allocating — the <c>items.Select(…)</c> shape.
-		/// A null returned by <paramref name="select"/> is skipped.
+		/// Maps each item in <paramref name="source"/> to a child element, skipping nulls.
 		/// </summary>
-		/// <remarks>
-		/// Write <paramref name="select"/> as a <c>static</c> lambda and reach everything it needs
-		/// through <paramref name="state"/>; capturing a local instead restores the per-render
-		/// closure this avoids.
-		/// <code>
-		/// Each(nodes, (current, onSelect), static (node, state) => new MapNode(new(
-		///     Node: node,
-		///     Current: state.current,
-		///     OnSelect: state.onSelect)))
-		/// </code>
-		/// </remarks>
 		public static Projection<TSource, TState> Each<TSource, TState>(
 			IList<TSource>? source,
 			TState state,
@@ -81,8 +59,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// <see cref="Each{TSource, TState}(IList{TSource}, TState, Func{TSource, TState, Element?})"/>
-		/// with each item's index.
+		/// Maps each item in <paramref name="source"/> and its index to a child element, skipping nulls.
 		/// </summary>
 		public static IndexedProjection<TSource, TState> Each<TSource, TState>(
 			IList<TSource>? source,
@@ -93,8 +70,9 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// The exception every element type throws from its unused enumerator.
+		/// Creates the exception an element throws when enumerated. Used by generated code.
 		/// </summary>
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public static Exception NotEnumerable(string name)
 		{
 			return new NotSupportedException(

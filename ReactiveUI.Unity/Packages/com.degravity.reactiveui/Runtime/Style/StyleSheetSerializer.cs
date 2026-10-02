@@ -33,7 +33,7 @@ namespace ReactiveUI
 	internal static class StyleSheetSerializer
 	{
 		/// <summary>Bumped whenever the layout below changes.</summary>
-		internal const int FormatVersion = 1;
+		internal const int FormatVersion = 2;
 
 		private const uint Magic = 0x53535552; // "RUSS"
 
@@ -47,6 +47,7 @@ namespace ReactiveUI
 			Gradient,
 			VarColor,
 			PendingTransition,
+			PendingTransform,
 		}
 
 		#region Writing
@@ -315,6 +316,12 @@ namespace ReactiveUI
 				case PendingTransition transition:
 					writer.Write((byte)ReferenceKind.PendingTransition);
 					writer.Write(transition.Text);
+
+					break;
+
+				case PendingTransform transform:
+					writer.Write((byte)ReferenceKind.PendingTransform);
+					writer.Write(transform.Text);
 
 					break;
 
@@ -656,6 +663,9 @@ namespace ReactiveUI
 
 				case ReferenceKind.PendingTransition:
 					return new PendingTransition(reader.ReadString());
+
+				case ReferenceKind.PendingTransform:
+					return new PendingTransform(reader.ReadString());
 
 				default:
 					throw new InvalidDataException("Unknown style value reference.");

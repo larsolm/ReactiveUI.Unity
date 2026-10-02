@@ -5,8 +5,7 @@ namespace ReactiveUI
 	public static partial class Ui
 	{
 		/// <summary>
-		/// Re-renders this component whenever <paramref name="source"/> raises the event
-		/// <paramref name="subscribe"/> attaches to.
+		/// Re-renders the component whenever the event on <paramref name="source"/> is raised.
 		/// </summary>
 		public static void UseSubscription<TSource>(
 			TSource? source,
@@ -19,7 +18,9 @@ namespace ReactiveUI
 			hook.Bind(source, subscribe, unsubscribe);
 		}
 
-		/// <summary><see cref="UseSubscription{TSource}"/> for an event that carries a value.</summary>
+		/// <summary>
+		/// Re-renders the component whenever the event on <paramref name="source"/> is raised.
+		/// </summary>
 		public static void UseSubscription<TSource, TArg>(
 			TSource? source,
 			Action<TSource, Action<TArg>> subscribe,
@@ -31,7 +32,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Reads how the player is currently driving the interface, and re-renders when that changes.
+		/// Returns the current input modality and re-renders the component when it changes.
 		/// </summary>
 		public static InputModality UseInputModality()
 		{
@@ -40,7 +41,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Reads whether a media query currently holds, and re-renders when that answer flips.
+		/// Returns whether the CSS media <paramref name="query"/> matches and re-renders the component when that changes.
 		/// </summary>
 		public static bool UseMedia(string query)
 		{
@@ -49,7 +50,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Reads the space this UI is laid out in, and re-renders whenever it changes.
+		/// Returns the UI's viewport and re-renders the component when it changes.
 		/// </summary>
 		public static Viewport UseViewport()
 		{
@@ -58,9 +59,9 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Reads the value the nearest provider above this component provides, and throws when
-		/// nothing does.
+		/// Returns the value from the nearest <see cref="ContextProvider{T}"/> above this component.
 		/// </summary>
+		/// <exception cref="MissingContextException">No provider of <typeparamref name="T"/> exists above this component.</exception>
 		public static T UseContext<T>()
 			where T : class
 		{
@@ -70,13 +71,8 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// <see cref="UseContext{T}"/> that returns null instead of throwing when nothing provides one.
+		/// Returns the value from the nearest <see cref="ContextProvider{T}"/> above this component, or null if there is none.
 		/// </summary>
-		/// <remarks>
-		/// Takes a hook slot and subscribes to the provider it found, so a changed value still reaches
-		/// this component when everything between them memoised. That is why it must not be called
-		/// conditionally.
-		/// </remarks>
 		public static T? UseContextOrNull<T>()
 			where T : class
 		{
@@ -99,9 +95,9 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Reads the nearest provided <see cref="Store"/> of type <typeparamref name="T"/> and
-		/// re-renders this component whenever it changes.
+		/// Returns the nearest provided <typeparamref name="T"/> store and re-renders the component when it changes.
 		/// </summary>
+		/// <exception cref="MissingContextException">No provider of <typeparamref name="T"/> exists above this component.</exception>
 		public static T UseStore<T>()
 			where T : Store
 		{

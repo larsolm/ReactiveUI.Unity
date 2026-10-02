@@ -6,7 +6,7 @@ namespace ReactiveUI
 	/// <summary>
 	/// Context every length resolves against.
 	/// </summary>
-	public readonly struct StyleContext
+	internal readonly struct StyleContext
 	{
 		/// <summary>
 		/// Pixels per <c>rem</c> — the knob the whole UI scales by.

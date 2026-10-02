@@ -55,7 +55,8 @@ namespace ReactiveUI
 		internal float _translateY;
 		internal bool _translateXRelative;
 		internal bool _translateYRelative;
-		internal float _scaleValue = 1f;
+		internal float _scaleX = 1f;
+		internal float _scaleY = 1f;
 		internal float _rotationValue;
 		internal float _motionX;
 		internal float _motionY;
@@ -197,7 +198,7 @@ namespace ReactiveUI
 		// reading the pivot back, which is itself a native call.
 		private Vector2 _writtenPivot;
 		private Vector2 _writtenPosition;
-		private float _writtenScale;
+		private Vector2 _writtenScale;
 		private float _writtenRotation;
 		private bool _transformWritten;
 
@@ -220,7 +221,8 @@ namespace ReactiveUI
 		private Action<float>? _setOpacity;
 		private Action<float>? _setTranslateX;
 		private Action<float>? _setTranslateY;
-		private Action<float>? _setScale;
+		private Action<float>? _setScaleX;
+		private Action<float>? _setScaleY;
 		private Action<float>? _setRotation;
 
 		internal abstract HostKind Kind { get; }
@@ -424,7 +426,8 @@ namespace ReactiveUI
 				case MotionChannelId.Opacity: _setOpacity?.Invoke(value); break;
 				case MotionChannelId.TranslateX: _setTranslateX?.Invoke(value); break;
 				case MotionChannelId.TranslateY: _setTranslateY?.Invoke(value); break;
-				case MotionChannelId.Scale: _setScale?.Invoke(value); break;
+				case MotionChannelId.ScaleX: _setScaleX?.Invoke(value); break;
+				case MotionChannelId.ScaleY: _setScaleY?.Invoke(value); break;
 				case MotionChannelId.Rotation: _setRotation?.Invoke(value); break;
 			}
 		}
@@ -464,7 +467,8 @@ namespace ReactiveUI
 			MotionChannelId.Opacity => _opacityValue,
 			MotionChannelId.TranslateX => _translateX,
 			MotionChannelId.TranslateY => _translateY,
-			MotionChannelId.Scale => _scaleValue,
+			MotionChannelId.ScaleX => _scaleX,
+			MotionChannelId.ScaleY => _scaleY,
 
 			// Stored negated, because CSS measures rotation the other way round from Unity.
 			_ => -_rotationValue,
@@ -524,7 +528,8 @@ namespace ReactiveUI
 			_setOpacity ??= ApplyOpacity;
 			_setTranslateX ??= value => { _translateX = value; RefreshTransform(); };
 			_setTranslateY ??= value => { _translateY = value; RefreshTransform(); };
-			_setScale ??= value => { _scaleValue = value; RefreshTransform(); };
+			_setScaleX ??= value => { _scaleX = value; RefreshTransform(); };
+			_setScaleY ??= value => { _scaleY = value; RefreshTransform(); };
 
 			// CSS measures rotation clockwise; Unity's Z axis measures it the other way. The flip
 			// lives here so PropId.Rotation means the same thing whether it came from a stylesheet
@@ -568,7 +573,8 @@ namespace ReactiveUI
 			WriteCascaded(MotionChannelId.Opacity, style, ctx, _setOpacity);
 			WriteCascaded(MotionChannelId.TranslateX, style, ctx, _setTranslateX);
 			WriteCascaded(MotionChannelId.TranslateY, style, ctx, _setTranslateY);
-			WriteCascaded(MotionChannelId.Scale, style, ctx, _setScale);
+			WriteCascaded(MotionChannelId.ScaleX, style, ctx, _setScaleX);
+			WriteCascaded(MotionChannelId.ScaleY, style, ctx, _setScaleY);
 			WriteCascaded(MotionChannelId.Rotation, style, ctx, _setRotation);
 		}
 
@@ -668,7 +674,7 @@ namespace ReactiveUI
 				_layoutPosition.x + translateX + _motionX + origin.x,
 				_layoutPosition.y - translateY + _motionY + origin.y);
 
-			var scale = _scaleValue * _motionScale;
+			var scale = new Vector2(_scaleX, _scaleY) * _motionScale;
 			var rotation = _rotationValue + _motionRotation;
 
 			if (!_transformWritten || _writtenPosition != position)
@@ -677,9 +683,9 @@ namespace ReactiveUI
 				_writtenPosition = position;
 			}
 
-			if (!_transformWritten || !Mathf.Approximately(_writtenScale, scale))
+			if (!_transformWritten || _writtenScale != scale)
 			{
-				_rectTransform.localScale = new Vector3(scale, scale, 1f);
+				_rectTransform.localScale = new Vector3(scale.x, scale.y, 1f);
 				_writtenScale = scale;
 			}
 
@@ -750,7 +756,8 @@ namespace ReactiveUI
 			_translateY = 0f;
 			_translateXRelative = false;
 			_translateYRelative = false;
-			_scaleValue = 1f;
+			_scaleX = 1f;
+			_scaleY = 1f;
 			_rotationValue = 0f;
 			_originFraction = new Vector2(0.5f, 0.5f);
 			_originOffset = Vector2.zero;

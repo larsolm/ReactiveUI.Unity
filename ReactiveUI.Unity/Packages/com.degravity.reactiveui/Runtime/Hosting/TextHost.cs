@@ -8,7 +8,7 @@ namespace ReactiveUI
 	/// <summary>
 	/// Horizontal alignment of a text run.
 	/// </summary>
-	public enum TextAlign
+	internal enum TextAlign
 	{
 		Left,
 		Center,
@@ -20,7 +20,7 @@ namespace ReactiveUI
 	/// Where a text run sits inside its own box, straight from TextMeshPro's set. <c>Middle</c> is
 	/// first because it is what the framework aligned to before the property existed.
 	/// </summary>
-	public enum VerticalAlign
+	internal enum VerticalAlign
 	{
 		Middle,
 		Top,
@@ -39,7 +39,7 @@ namespace ReactiveUI
 	/// <summary>
 	/// Whether a text run may wrap.
 	/// </summary>
-	public enum WhiteSpace
+	internal enum WhiteSpace
 	{
 		Normal,
 		NoWrap,
@@ -48,7 +48,7 @@ namespace ReactiveUI
 	/// <summary>
 	/// Casing applied to a text run on the way to the glyphs.
 	/// </summary>
-	public enum TextTransform
+	internal enum TextTransform
 	{
 		None,
 		Uppercase,

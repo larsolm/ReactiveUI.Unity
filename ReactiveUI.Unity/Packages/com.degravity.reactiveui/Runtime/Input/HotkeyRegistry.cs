@@ -12,7 +12,7 @@ namespace ReactiveUI
 	/// whatever the screen beneath it bound, and unbinding on unmount restores it without either
 	/// side knowing about the other.
 	/// </remarks>
-	public sealed class HotkeyRegistry
+	internal sealed class HotkeyRegistry
 	{
 		private readonly struct Binding
 		{

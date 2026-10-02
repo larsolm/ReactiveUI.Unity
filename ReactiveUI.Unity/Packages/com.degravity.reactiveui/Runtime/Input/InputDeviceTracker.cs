@@ -10,58 +10,56 @@ namespace ReactiveUI
 	/// </summary>
 	public enum InputDeviceKind
 	{
-		/// <summary>Keyboard and mouse, which are treated as one hand on one desk.</summary>
+		/// <summary>A keyboard or mouse.</summary>
 		Keyboard,
+
+		/// <summary>A gamepad.</summary>
 		Gamepad,
 	}
 
 	/// <summary>
-	/// The button family of the gamepad the player last used, which decides which glyphs a prompt shows.
+	/// The button layout of the gamepad the player last used.
 	/// </summary>
 	public enum GamepadLayout
 	{
+		/// <summary>An unrecognized gamepad.</summary>
 		Generic,
+
+		/// <summary>An Xbox-style gamepad.</summary>
 		Xbox,
+
+		/// <summary>A PlayStation-style gamepad.</summary>
 		PlayStation,
+
+		/// <summary>A Nintendo Switch-style gamepad.</summary>
 		Switch,
 	}
 
 	/// <summary>
-	/// Tracks which device the player last touched, and what kind of gamepad it was.
+	/// Tracks the kind of device the player last used and, for gamepads, its layout.
 	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// This is what <c>@media (input-device: …)</c> and <c>@media (gamepad-layout: …)</c> answer. It is
-	/// a different question from <see cref="InputModalityTracker"/>: arrow keys are navigation but still
-	/// a keyboard, and a prompt has to say "Enter" to that player, not "A".
-	/// </para>
-	/// <para>
-	/// Process-wide rather than per runtime, like modality — one player, one pair of hands. Layouts are
-	/// matched by name through the layout hierarchy, so derived pads (DualSense from DualShock, the
-	/// platform Xbox variants from XInput) classify without this code naming each platform's type.
-	/// </para>
-	/// </remarks>
 	[AutoStaticsCleanup]
 	public static partial class InputDeviceTracker
 	{
+		/// <summary>
+		/// The kind of device the player last used.
+		/// </summary>
 		public static InputDeviceKind Device { get; private set; } = InitialDevice();
 
+		/// <summary>
+		/// The layout of the gamepad the player last used.
+		/// </summary>
 		public static GamepadLayout Layout { get; private set; } = InitialLayout();
 
 		/// <summary>
-		/// Raised when either the device kind or the gamepad layout changes.
+		/// Raised when <see cref="Device"/> or <see cref="Layout"/> changes.
 		/// </summary>
 		public static event Action Changed = null!;
 
 		/// <summary>
-		/// Starts following input events. Idempotent, and safe to call again after statics are reset.
+		/// Starts following input events. Idempotent.
 		/// </summary>
-		/// <remarks>
-		/// Event-driven rather than polled: a device's per-frame flags depend on which update type and
-		/// state buffer is current, which differs between play mode, edit mode and a test fixture, while
-		/// an event says plainly which device just changed.
-		/// </remarks>
-		public static void Listen()
+		internal static void Listen()
 		{
 			InputSystem.onEvent -= OnEvent;
 			InputSystem.onEvent += OnEvent;
@@ -70,7 +68,7 @@ namespace ReactiveUI
 		/// <summary>
 		/// Records that the player just used <paramref name="device"/>.
 		/// </summary>
-		public static void Note(InputDevice device)
+		internal static void Note(InputDevice device)
 		{
 			if (device is Gamepad)
 				Set(InputDeviceKind.Gamepad, Classify(device));

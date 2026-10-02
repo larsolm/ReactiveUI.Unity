@@ -971,13 +971,14 @@ corners rather than falling back to a box:
 inherited, and hiding is a zero alpha on a `CanvasGroup` that multiplies down the subtree — so
 unlike CSS, a descendant cannot win itself back with `visibility: visible`.
 
-**Transform** — `transform: translate() | translateX() | translateY() | scale() | rotate(Ndeg)`.
-Rotation is clockwise, as CSS measures it, and a positive `translateY` moves down. A translation
+**Transform** — `transform: translate() | translateX() | translateY() | scale() | scaleX() | scaleY() | rotate(Ndeg)`.
+`scale(s)` scales both axes and `scale(x, y)` each separately. Rotation is clockwise, as CSS measures it, and a positive `translateY` moves down. A translation
 keeps its unit: `rem` scales with the rem size and a percentage is of the node's own box, so
 `translateX(-100%)` moves a node exactly its own width. A keyframe track takes the unit of its first
-nonzero stop; mixing lengths and percentages within one track is not supported. All four channels are
+nonzero stop; mixing lengths and percentages within one track is not supported. All five channels are
 written on every `transform` declaration, so a more specific rule replaces the whole list rather than
-merging into it.
+merging into it. A `transform` may read custom properties — `translateX(calc(var(--bar) * -1))` — and is
+parsed per node once they are substituted; inside `@keyframes`, which has no scope, that is rejected.
 
 **Transform origin** — `transform-origin`, one or two components from `left`/`center`/`right`,
 `top`/`center`/`bottom`, a length, or a percentage, in either order when both are keywords. It
@@ -985,7 +986,7 @@ defaults to `50% 50%` as CSS does, so scaling and rotation act from the centre u
 otherwise. It is implemented by moving the rect's pivot, which is why the framework — not your
 scene — owns the pivot of every node it lays out.
 
-**Transitions** — `transition` and its longhands. `transition-property: transform` covers all four
+**Transitions** — `transition` and its longhands. `transition-property: transform` covers all five
 transform channels, and `transition-property: border-color` all four edges.
 
 **Animations** — `animation` and its longhands, against a `@keyframes` block. See
@@ -1182,7 +1183,7 @@ write the longhands:
 }
 ```
 
-Animatable: `background-color`, `color`, `border-color`, `opacity`, and the four transform channels.
+Animatable: `background-color`, `color`, `border-color`, `opacity`, and the five transform channels (translate X/Y, scale X/Y, rotation).
 Everything else — border width and style, radii, shadows, layout — changes on the frame the rule starts
 applying. That is a snap, not a bug: motion needs a channel behind it, and these do not have one.
 Naming one of them in a `transition` is silently a snap; naming one *inside* a `@keyframes` block is
@@ -1303,7 +1304,7 @@ cell.Style[Css.Left] = x;
 
 Typed handles exist for the properties inline styling actually reaches for — `Left`, `Right`, `Top`,
 `Bottom`, `Width`, `Height`, `MinHeight`, `FontSize`, `TranslateX`, `TranslateY`, `BackgroundColor`,
-`Color`, `BorderColor`, `Opacity`, `FlexGrow`, `Rotation`, `Scale` — grouped by value type so
+`Color`, `BorderColor`, `Opacity`, `FlexGrow`, `Rotation`, `Scale`, `ScaleX`, `ScaleY` — grouped by value type so
 `Css.Left` takes a `StyleLength`, `Css.Color` a `Color` and `Css.Opacity` a `float`.
 
 A custom property holds a colour, a length, or a bare number — `--columns: 8`. The number matters

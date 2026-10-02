@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ReactiveUI
 {
 	/// <summary>Which way round each iteration of an animation runs.</summary>
-	public enum AnimationDirection
+	internal enum AnimationDirection
 	{
 		Normal,
 		Reverse,
@@ -14,7 +14,7 @@ namespace ReactiveUI
 	}
 
 	/// <summary>Whether an animation holds its endpoints outside its running time.</summary>
-	public enum AnimationFill
+	internal enum AnimationFill
 	{
 		None,
 		Forwards,

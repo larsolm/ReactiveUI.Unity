@@ -1,11 +1,9 @@
 ﻿namespace ReactiveUI
 {
 	/// <summary>
-	/// Every style property the framework understands. A computed style is a sorted array keyed
-	/// on this, so adding a property costs one entry here plus one line in the property registry —
-	/// not a field on a god object plus a merge, a comparer and a hash.
+	/// Every style property the framework understands.
 	/// </summary>
-	public enum PropId : ushort
+	internal enum PropId : ushort
 	{
 		None = 0,
 
@@ -72,7 +70,8 @@
 		// ---- Transform ----
 		TranslateX,
 		TranslateY,
-		Scale,
+		ScaleX,
+		ScaleY,
 		Rotation,
 		TransformOriginX,
 		TransformOriginY,
@@ -108,7 +107,7 @@
 	}
 
 	/// <summary>
-	/// A property whose value is a <see cref="StyleLength"/>.
+	/// A style property that takes a <see cref="StyleLength"/>.
 	/// </summary>
 	public readonly struct LengthProp
 	{
@@ -121,52 +120,99 @@
 	}
 
 	/// <summary>
-	/// A property whose value is a colour.
+	/// A style property that takes a color.
 	/// </summary>
 	public readonly struct ColorProp
 	{
 		internal readonly PropId _id;
 
-		internal ColorProp(PropId id)
+		/// Set for a shorthand handle whose <see cref="_id"/> is the top side of a four-sided group.
+		internal readonly bool _allSides;
+
+		internal ColorProp(PropId id, bool allSides = false)
 		{
 			_id = id;
+			_allSides = allSides;
 		}
 	}
 
 	/// <summary>
-	/// A property whose value is a bare number.
+	/// A style property that takes a number.
 	/// </summary>
 	public readonly struct FloatProp
 	{
 		internal readonly PropId _id;
-		internal FloatProp(PropId id)
+
+		/// Set for the uniform scale handle, whose <see cref="_id"/> is the X axis of the pair.
+		internal readonly bool _bothAxes;
+
+		internal FloatProp(PropId id, bool bothAxes = false)
 		{
 			_id = id;
+			_bothAxes = bothAxes;
 		}
 	}
 
 	/// <summary>
-	/// Typed handles for the properties that are worth setting from C# — gameplay-driven values
-	/// that cannot live in a stylesheet. Anything static belongs in CSS instead.
+	/// Style properties that can be set through <see cref="InlineStyle"/>.
 	/// </summary>
 	public static class Css
 	{
+		/// <summary>The <c>left</c> property.</summary>
 		public static readonly LengthProp Left = new(PropId.Left);
+
+		/// <summary>The <c>right</c> property.</summary>
 		public static readonly LengthProp Right = new(PropId.Right);
+
+		/// <summary>The <c>top</c> property.</summary>
 		public static readonly LengthProp Top = new(PropId.Top);
+
+		/// <summary>The <c>bottom</c> property.</summary>
 		public static readonly LengthProp Bottom = new(PropId.Bottom);
+
+		/// <summary>The <c>width</c> property.</summary>
 		public static readonly LengthProp Width = new(PropId.Width);
+
+		/// <summary>The <c>height</c> property.</summary>
 		public static readonly LengthProp Height = new(PropId.Height);
+
+		/// <summary>The <c>min-height</c> property.</summary>
 		public static readonly LengthProp MinHeight = new(PropId.MinHeight);
+
+		/// <summary>The <c>font-size</c> property.</summary>
 		public static readonly LengthProp FontSize = new(PropId.FontSize);
+
+		/// <summary>The horizontal translation of <c>transform</c>.</summary>
 		public static readonly LengthProp TranslateX = new(PropId.TranslateX);
+
+		/// <summary>The vertical translation of <c>transform</c>.</summary>
 		public static readonly LengthProp TranslateY = new(PropId.TranslateY);
+
+		/// <summary>The <c>background-color</c> property.</summary>
 		public static readonly ColorProp BackgroundColor = new(PropId.BackgroundColor);
+
+		/// <summary>The <c>color</c> property.</summary>
 		public static readonly ColorProp Color = new(PropId.Color);
-		public static readonly ColorProp BorderColor = new(PropId.BorderTopColor);
+
+		/// <summary>The <c>border-color</c> property, applied to all four sides.</summary>
+		public static readonly ColorProp BorderColor = new(PropId.BorderTopColor, allSides: true);
+
+		/// <summary>The <c>opacity</c> property.</summary>
 		public static readonly FloatProp Opacity = new(PropId.Opacity);
+
+		/// <summary>The <c>flex-grow</c> property.</summary>
 		public static readonly FloatProp FlexGrow = new(PropId.FlexGrow);
+
+		/// <summary>The rotation of <c>transform</c>, in degrees.</summary>
 		public static readonly FloatProp Rotation = new(PropId.Rotation);
-		public static readonly FloatProp Scale = new(PropId.Scale);
+
+		/// <summary>The uniform scale of <c>transform</c>, applied to both axes.</summary>
+		public static readonly FloatProp Scale = new(PropId.ScaleX, bothAxes: true);
+
+		/// <summary>The horizontal scale of <c>transform</c>.</summary>
+		public static readonly FloatProp ScaleX = new(PropId.ScaleX);
+
+		/// <summary>The vertical scale of <c>transform</c>.</summary>
+		public static readonly FloatProp ScaleY = new(PropId.ScaleY);
 	}
 }

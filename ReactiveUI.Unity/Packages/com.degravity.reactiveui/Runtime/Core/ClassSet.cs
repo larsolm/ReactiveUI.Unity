@@ -1,17 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text;
 using Unity.Scripting.LifecycleManagement;
 
 namespace ReactiveUI
 {
 	/// <summary>
-	/// One interned class name. Names are mapped to dense ints once and are never remapped.
+	/// An interned CSS class name.
 	/// </summary>
 	public readonly struct ClassName : IEquatable<ClassName>
 	{
+		/// <summary>
+		/// Whether this refers to a non-empty name.
+		/// </summary>
 		public bool IsValid => _id != 0;
 
+		/// <summary>
+		/// The class name text.
+		/// </summary>
 		public string Name => ClassTable.NameOf(_id);
 
 		internal readonly int _id;
@@ -21,25 +28,41 @@ namespace ReactiveUI
 			_id = id;
 		}
 
+		/// <summary>
+		/// Returns the <see cref="ClassName"/> for <paramref name="name"/>. Used by generated code.
+		/// </summary>
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public static ClassName Intern(string name) => new(ClassTable.Intern(name));
+
 		public override bool Equals(object? obj) => obj is ClassName other && Equals(other);
 		public override int GetHashCode() => _id;
 		public override string ToString() => Name;
 		public bool Equals(ClassName other) => _id == other._id;
 
+		/// <summary>
+		/// Combines two class names into a set.
+		/// </summary>
 		public static ClassSet operator |(ClassName a, ClassName b) => new ClassSet(a) | b;
+
+		/// <summary>
+		/// Returns a set containing <paramref name="a"/> when <paramref name="b"/> is true, otherwise an empty set.
+		/// </summary>
 		public static ClassSet operator &(ClassName a, bool b) => b ? new ClassSet(a) : default;
+
+		/// <inheritdoc cref="op_BitwiseAnd(ClassName, bool)"/>
 		public static ClassSet operator &(bool b, ClassName a) => b ? new ClassSet(a) : default;
 	}
 
 	/// <summary>
-	/// The set of class names on one element. Holds four inline and spills to an array beyond
-	/// that, so the overwhelmingly common cases never allocate and equality is four int compares.
+	/// A set of CSS class names applied to an element.
 	/// </summary>
 	public struct ClassSet : IEquatable<ClassSet>
 	{
 		private const int InlineCapacity = 8;
 
+		/// <summary>
+		/// The number of class names in the set.
+		/// </summary>
 		public int Count { get; private set; }
 
 		private int _a;
@@ -52,6 +75,9 @@ namespace ReactiveUI
 		private int _h;
 		private int[]? _overflow;
 
+		/// <summary>
+		/// Creates a set containing <paramref name="name"/>.
+		/// </summary>
 		public ClassSet(ClassName name) : this()
 		{
 			if (name.IsValid)
@@ -115,6 +141,9 @@ namespace ReactiveUI
 			Count++;
 		}
 
+		/// <summary>
+		/// Whether the set contains <paramref name="name"/>.
+		/// </summary>
 		public readonly bool Contains(ClassName name)
 		{
 			for (var i = 0; i < Count; i++)
@@ -175,7 +204,7 @@ namespace ReactiveUI
 			return builder.ToString();
 		}
 
-		public readonly int this[int index] => index switch
+		internal readonly int this[int index] => index switch
 		{
 			0 => _a,
 			1 => _b,
@@ -188,8 +217,14 @@ namespace ReactiveUI
 			_ => _overflow![index - InlineCapacity],
 		};
 
+		/// <summary>
+		/// Converts a single class name to a set.
+		/// </summary>
 		public static implicit operator ClassSet(ClassName name) => new(name);
 
+		/// <summary>
+		/// Returns the union of two sets.
+		/// </summary>
 		public static ClassSet operator |(ClassSet a, ClassSet b)
 		{
 			for (var i = 0; i < b.Count; i++)
@@ -198,6 +233,9 @@ namespace ReactiveUI
 			return a;
 		}
 
+		/// <summary>
+		/// Returns the set with <paramref name="b"/> added.
+		/// </summary>
 		public static ClassSet operator |(ClassSet a, ClassName b)
 		{
 			a.Add(b._id);

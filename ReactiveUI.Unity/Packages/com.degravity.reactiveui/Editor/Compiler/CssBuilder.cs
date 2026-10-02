@@ -661,6 +661,17 @@ namespace ReactiveUI
 								continue;
 							}
 
+							if (declaration.Value.Reference is PendingTransform)
+							{
+								_diagnostics.Add(
+									$"{_sourceName}: @keyframes {name} cannot use a transform that reads a custom property.");
+
+								// One diagnostic for the shorthand, not one per channel it expanded into.
+								i += PendingTransform.Longhands.Length - 1;
+
+								continue;
+							}
+
 							if (!MotionChannels.TryChannelFor(declaration.Id, out var channel))
 							{
 								_diagnostics.Add(

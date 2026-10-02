@@ -4,14 +4,13 @@ using System.Collections.Generic;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// A piece of component state plus the setters that change it.
+	/// A component state value and its setters, returned by <see cref="Ui.UseState{T}"/>.
 	/// </summary>
-	/// <remarks>
-	/// The setters are bound to the hook, not to the element that read it, so a handler captured in
-	/// one render keeps working after later renders have replaced that element.
-	/// </remarks>
 	public readonly struct State<T> : IEquatable<State<T>>
 	{
+		/// <summary>
+		/// The current value.
+		/// </summary>
 		public T Value => _hook.Value;
 
 		private readonly StateHook<T> _hook;
@@ -22,35 +21,16 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Sets the state to the specified value.
+		/// Sets the value, re-rendering the component if it changed.
 		/// </summary>
-		/// <param name="value">The new value to set the state to.</param>
 		public void Set(T value)
 		{
 			_hook.Set(value);
 		}
 
 		/// <summary>
-		/// <see cref="Set"/> as a delegate, for handing to a component that wants one.
+		/// Sets the value to the result of <paramref name="update"/> applied to the current value.
 		/// </summary>
-		/// <remarks>
-		/// Built once when the hook is created. Passing the method group instead —
-		/// <c>OnChange = value.Set</c> — allocates a delegate <em>and</em> boxes this struct to be its
-		/// target, on every render, and the fresh reference defeats the memoisation of whatever it is
-		/// handed to.
-		/// </remarks>
-		public Action<T> Setter => _hook.Setter;
-
-		/// <summary>
-		/// Updates from the current value — correct even when several updates batch in one frame.
-		/// </summary>
-		/// <remarks>
-		/// Write <paramref name="update"/> as a <c>static</c> lambda and reach everything it needs
-		/// through <paramref name="state"/>; capturing a local instead allocates a closure per call.
-		/// <code>
-		/// count.Update(step, static (current, amount) => current + amount);
-		/// </code>
-		/// </remarks>
 		public void Update<TState>(TState state, Func<T, TState, T> update)
 		{
 			_hook.Set(update(_hook.Value, state));
@@ -58,6 +38,9 @@ namespace ReactiveUI
 
 		public bool Equals(State<T> other) => EqualityComparer<T>.Default.Equals(Value, other.Value);
 
+		/// <summary>
+		/// Returns the state's current value.
+		/// </summary>
 		public static implicit operator T(State<T> state) => state.Value;
 	}
 

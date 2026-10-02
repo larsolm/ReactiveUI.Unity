@@ -5,20 +5,8 @@ using UnityEngine;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// A <c>.css</c> file, compiled when it was imported.
+	/// The imported asset for a <c>.css</c> file.
 	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// This is what a stylesheet asset is. The editor compiles each file once, when it changes, and
-	/// both the editor and a player load the result — so there is one path from CSS to the cascade,
-	/// and a player carries neither the CSS library nor the time it takes to run.
-	/// </para>
-	/// <para>
-	/// Besides the compiled sheet it records what the editor needs to know about the file without
-	/// loading it: the class names it uses, for the generated <c>ClassName</c> constants, and the
-	/// sheets it imports, which decide the cascade order.
-	/// </para>
-	/// </remarks>
 	public sealed class CompiledStyleSheet : ScriptableObject
 	{
 		/// <summary>One <c>@import</c>, resolved to the asset it names.</summary>
@@ -57,19 +45,19 @@ namespace ReactiveUI
 		private string[] _diagnostics = Array.Empty<string>();
 
 		/// <summary>The asset path the sheet was compiled from.</summary>
-		public string SourcePath => _sourcePath;
+		internal string SourcePath => _sourcePath;
 
 		/// <summary>Every class a selector in the sheet names, sorted.</summary>
-		public IReadOnlyList<string> Classes => _classes;
+		internal IReadOnlyList<string> Classes => _classes;
 
 		/// <summary>
 		/// Classes the sheet styles with nothing narrowing them — a rule that is a single class, outside
 		/// any <c>@scope</c> — in the order the sheet first does so.
 		/// </summary>
-		public IReadOnlyList<string> UnscopedClasses => _unscopedClasses;
+		internal IReadOnlyList<string> UnscopedClasses => _unscopedClasses;
 
 		/// <summary>What the compiler had to say about the file.</summary>
-		public IReadOnlyList<string> Diagnostics => _diagnostics;
+		internal IReadOnlyList<string> Diagnostics => _diagnostics;
 
 		internal IReadOnlyList<Import> Imports => _imports;
 

@@ -16,7 +16,7 @@ namespace ReactiveUI
 	/// one file: registering fonts, and ranking cascade layers, whose order is decided by every sheet
 	/// that names them.
 	/// </remarks>
-	public sealed class StyleSheetLibrary : IStyleSheetSource
+	internal sealed class StyleSheetLibrary : IStyleSheetSource
 	{
 		private readonly List<StyleSheet> _sheets = new();
 

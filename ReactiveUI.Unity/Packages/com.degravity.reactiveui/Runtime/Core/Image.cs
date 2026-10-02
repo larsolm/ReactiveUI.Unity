@@ -4,45 +4,54 @@ using UnityEngine;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// How an <see cref="Image"/> stretches its sprite.
+	/// How an <see cref="Image"/> draws its sprite.
 	/// </summary>
 	public enum ImageMode
 	{
+		/// <summary>Stretches the whole sprite to fill the element.</summary>
 		Simple,
+
+		/// <summary>Draws the sprite as a nine-slice using its borders.</summary>
 		Sliced,
+
+		/// <summary>Draws the sprite using its mesh, as imported from an SVG.</summary>
 		Svg,
 	}
 
 	/// <summary>
-	/// <see cref="Image"/>'s props.
+	/// Props for <see cref="Image"/>.
 	/// </summary>
+	/// <param name="Sprite">The sprite to draw.</param>
+	/// <param name="Mode">How the sprite is drawn.</param>
 	public readonly record struct ImageProps(Sprite? Sprite = null, ImageMode Mode = ImageMode.Simple);
 
 	/// <summary>
-	/// A sprite or SVG.
+	/// An element that draws a sprite.
 	/// </summary>
 	public readonly struct Image : IElement
 	{
+		/// <inheritdoc/>
 		public Element Handle { get; }
 
-		/// <summary>An unclassed Image.</summary>
-		/// <remarks>
-		/// Declared explicitly, and this is load-bearing: for a struct, <c>new Image()</c> binds to
-		/// the implicit parameterless constructor rather than to the one whose arguments are all
-		/// optional. Without this it would zero-initialise instead, yielding a handle to no element
-		/// at all — and the node, along with every child added to it, would silently not render.
-		/// </remarks>
+		/// <summary>
+		/// Creates an element with no classes.
+		/// </summary>
 		public Image()
 			: this(default)
 		{
 		}
 
+		/// <summary>
+		/// Creates an element with the given classes, props, and ref.
+		/// </summary>
 		public Image(ClassSet className = default, ImageProps? props = null, ElementRef? elementRef = null)
 		{
 			Handle = Element.Host(HostKind.Image, className, elementRef, PropsPool<ImageProps>.Add(props ?? new ImageProps()));
 		}
 
-		/// <inheritdoc cref="InlineStyle"/>
+		/// <summary>
+		/// The element's inline style.
+		/// </summary>
 		public ref InlineStyle Style => ref InlineArena.At(InlineArena.Slot(Handle._node));
 
 		public static implicit operator Element(Image self) => self.Handle;

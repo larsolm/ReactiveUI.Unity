@@ -6,24 +6,19 @@ namespace ReactiveUI
 	public static partial class Ui
 	{
 		/// <summary>
-		/// The runtime's focus manager, for moving focus imperatively from a handler or effect.
+		/// Returns the runtime's focus manager.
 		/// </summary>
-		/// <remarks>
-		/// Not a hook — it takes no slot and may be called anywhere in a render.
-		/// </remarks>
 		public static FocusManager UseFocus()
 		{
 			return Current().Focus;
 		}
 
 		/// <summary>
-		/// Confines navigation to the node behind <paramref name="scope"/> for as long as this
-		/// component is mounted.
+		/// Confines focus navigation to <paramref name="scope"/> while this component is mounted.
 		/// </summary>
 		/// <remarks>
-		/// Pushed after the first layout and popped at unmount. Focus left outside the scope is dropped
-		/// when it is pushed; with <paramref name="restoreFocus"/>, whatever held focus before is focused
-		/// again when the scope goes away — what closing a dialog should do.
+		/// Focus outside the scope is cleared when the scope is entered. When <paramref name="restoreFocus"/>
+		/// is true, the previously focused node is refocused on unmount.
 		/// </remarks>
 		public static void UseFocusScope(ElementRef scope, bool restoreFocus = true)
 		{
@@ -50,13 +45,8 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Focuses the node behind <paramref name="target"/> once, when this component mounts.
+		/// Focuses <paramref name="target"/> once after this component mounts.
 		/// </summary>
-		/// <remarks>
-		/// Runs after layout, so a target inside a scroll view is scrolled into view. The navigation
-		/// ring still follows input modality: a pointer user gets <c>:focus</c> without
-		/// <c>:focus-visible</c>.
-		/// </remarks>
 		public static void UseAutoFocus(ElementRef target)
 		{
 			UseEffect(
@@ -69,13 +59,18 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Calls <paramref name="action"/> whenever <paramref name="inputAction"/> is performed, for as
-		/// long as this component is mounted.
+		/// Invokes <paramref name="action"/> whenever <paramref name="inputAction"/> is performed while this component is mounted.
 		/// </summary>
 		/// <remarks>
-		/// Last-binding-wins per action, like <see cref="UseHotkey{TState}"/>, so a modal binding Cancel
-		/// shadows the screen beneath it. A null or disabled action binds nothing.
+		/// Only the most recently mounted binding for an action is invoked.
 		/// </remarks>
+		public static void UseInputAction(InputAction? inputAction, Action action)
+		{
+			var hook = Current().GetOrCreate(0, static (store, _) => new InputActionHook(store));
+			hook.Bind(inputAction, action);
+		}
+
+		/// <inheritdoc cref="UseInputAction(InputAction?, Action)"/>
 		public static void UseInputAction<TState>(InputAction? inputAction, TState state, Action<TState> action)
 		{
 			var hook = Current().GetOrCreate(0, static (store, _) => new InputActionHook<TState>(store));

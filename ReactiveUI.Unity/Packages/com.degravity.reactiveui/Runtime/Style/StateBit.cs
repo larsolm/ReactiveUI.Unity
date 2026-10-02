@@ -5,7 +5,7 @@ namespace ReactiveUI
 	/// <summary>
 	/// One bit in a node's state word.
 	/// </summary>
-	public readonly struct StateBit : IEquatable<StateBit>
+	internal readonly struct StateBit : IEquatable<StateBit>
 	{
 		public static StateBit None => new(-1);
 

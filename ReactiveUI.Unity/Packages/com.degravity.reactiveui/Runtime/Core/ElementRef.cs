@@ -3,21 +3,8 @@
 namespace ReactiveUI
 {
 	/// <summary>
-	/// A handle to a mounted node, for driving it imperatively.
+	/// A handle to a mounted element for reading its size and applying transforms imperatively.
 	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// This is the escape hatch from the declarative path, and it exists for one reason: values
-	/// that change every frame. A falling tile, a dragged card, a counter ticking up — pushing
-	/// those through render and the cascade would rebuild elements and re-resolve styles sixty
-	/// times a second to move something a few pixels.
-	/// </para>
-	/// <para>
-	/// Motion written here is an offset on top of whatever the stylesheet resolved, not a
-	/// replacement for it, so a restyle cannot clobber a drag in progress and a drag cannot
-	/// permanently displace a styled position.
-	/// </para>
-	/// </remarks>
 	public sealed class ElementRef
 	{
 		internal HostInstance? _host;
@@ -28,12 +15,12 @@ namespace ReactiveUI
 		public bool IsMounted => _host is { _unmounted: false };
 
 		/// <summary>
-		/// The node's laid-out size, once layout has run.
+		/// The node's laid-out size, or zero before layout.
 		/// </summary>
 		public Vector2 Size => _host is null ? Vector2.zero : _host._rectTransform.sizeDelta;
 
 		/// <summary>
-		/// Offsets the node from where layout put it.
+		/// Offsets the node from its laid-out position.
 		/// </summary>
 		public void SetTranslate(float x, float y)
 		{
@@ -46,7 +33,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Scales the node, multiplying whatever the style already applied.
+		/// Scales the node, multiplied with its styled scale.
 		/// </summary>
 		public void SetScale(float scale)
 		{
@@ -58,7 +45,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Rotates the node, adding to whatever the style already applied.
+		/// Rotates the node, added to its styled rotation.
 		/// </summary>
 		public void SetRotation(float degrees)
 		{
@@ -70,7 +57,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Returns the node to exactly where its style puts it.
+		/// Resets the translate, scale, and rotation set through this handle.
 		/// </summary>
 		public void ClearMotion()
 		{

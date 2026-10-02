@@ -5,34 +5,28 @@ using Unity.Scripting.LifecycleManagement;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// A component: one type with one <see cref="Render"/>, whose props are
-	/// <typeparamref name="TProps"/>.
+	/// A component that renders from props of type <typeparamref name="TProps"/>.
 	/// </summary>
 	/// <remarks>
-	/// Declare the props as a <c>readonly record struct</c>: the compiler writes the equality, and the
-	/// <see cref="IEquatable{T}"/> constraint keeps the memo comparison off
-	/// <see cref="ValueType.Equals(object)"/>, which would box both sides and walk the fields
-	/// reflectively. To decide equality yourself, write <c>public bool Equals(TProps other)</c> inside
-	/// the props struct.
+	/// The component re-renders only when its props are unequal to the previous render's props.
 	/// </remarks>
 	public interface IComponent<TProps> : IElement
 		where TProps : struct, IEquatable<TProps>
 	{
 		/// <summary>
-		/// Produces this component's subtree.
+		/// Returns this component's element tree for the given props.
 		/// </summary>
-		/// <remarks>
-		/// Props arrive as a parameter rather than being read off the element, because the element is
-		/// gone by the time a re-render runs: the committed props live on the instance.
-		/// </remarks>
 		Element Render(in TProps props);
 	}
 
 	/// <summary>
-	/// A component with no props — a screen, or anything that reads everything it needs from hooks.
+	/// A component that takes no props.
 	/// </summary>
 	public interface IComponent : IElement
 	{
+		/// <summary>
+		/// Returns this component's element tree.
+		/// </summary>
 		Element Render();
 	}
 

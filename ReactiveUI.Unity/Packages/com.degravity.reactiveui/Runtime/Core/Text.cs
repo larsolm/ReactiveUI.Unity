@@ -2,33 +2,39 @@
 
 namespace ReactiveUI
 {
+	/// <summary>
+	/// Props for <see cref="Text"/>.
+	/// </summary>
+	/// <param name="Content">The text to display.</param>
 	public readonly record struct TextProps(string Content = "");
 
 	/// <summary>
-	/// A text run.
+	/// An element that displays text.
 	/// </summary>
 	public readonly struct Text : IElement
 	{
+		/// <inheritdoc/>
 		public Element Handle { get; }
 
-		/// <summary>An unclassed Text.</summary>
-		/// <remarks>
-		/// Declared explicitly, and this is load-bearing: for a struct, <c>new Text()</c> binds to
-		/// the implicit parameterless constructor rather than to the one whose arguments are all
-		/// optional. Without this it would zero-initialise instead, yielding a handle to no element
-		/// at all — and the node, along with every child added to it, would silently not render.
-		/// </remarks>
+		/// <summary>
+		/// Creates an element with no classes.
+		/// </summary>
 		public Text()
 			: this(default)
 		{
 		}
 
+		/// <summary>
+		/// Creates an element with the given classes, props, and ref.
+		/// </summary>
 		public Text(ClassSet className = default, TextProps? props = null, ElementRef? elementRef = null)
 		{
 			Handle = Element.Host(HostKind.Text, className, elementRef, PropsPool<TextProps>.Add(props ?? new TextProps()));
 		}
 
-		/// <inheritdoc cref="InlineStyle"/>
+		/// <summary>
+		/// The element's inline style.
+		/// </summary>
 		public ref InlineStyle Style => ref InlineArena.At(InlineArena.Slot(Handle._node));
 
 		public static implicit operator Element(Text self) => self.Handle;

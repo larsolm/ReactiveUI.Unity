@@ -3,7 +3,7 @@ namespace ReactiveUI
 	/// <summary>
 	/// Which Unity-side object backs a host element.
 	/// </summary>
-	public enum HostKind
+	internal enum HostKind
 	{
 		View,
 		Text,

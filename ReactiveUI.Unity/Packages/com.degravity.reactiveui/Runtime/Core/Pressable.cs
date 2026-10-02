@@ -5,16 +5,18 @@ using UnityEngine;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// <see cref="Pressable"/>'s props.
+	/// Props for <see cref="Pressable"/>.
 	/// </summary>
-	/// <param name="Unfocusable">
-	/// Keeps navigation from landing here. A part of a larger control — a segment, a slider's track —
-	/// stays clickable without becoming a stop of its own. Phrased negatively so that zeroed props, which
-	/// a record struct's parameterless constructor produces, mean the ordinary focusable case.
-	/// </param>
+	/// <param name="OnClick">Invoked when the element is clicked or submitted while focused.</param>
+	/// <param name="OnClickAt">Invoked on click with the pointer position in the element's local space.</param>
+	/// <param name="OnPressDown">Invoked when a press begins.</param>
+	/// <param name="OnPressUp">Invoked when a press ends.</param>
+	/// <param name="OnHoverEnter">Invoked when the pointer enters the element.</param>
+	/// <param name="OnHoverExit">Invoked when the pointer leaves the element.</param>
+	/// <param name="Disabled">Whether the element ignores input and cannot be focused.</param>
+	/// <param name="Unfocusable">Whether focus navigation skips the element.</param>
 	/// <param name="OnMove">
-	/// Offered each navigation direction while this node holds focus; returning true consumes it, so a
-	/// focused slider or option row can take left and right instead of losing focus to them.
+	/// Invoked with the navigation direction while the element is focused; return true to consume it.
 	/// </param>
 	public readonly record struct PressableProps(
 		Action? OnClick = null,
@@ -29,24 +31,24 @@ namespace ReactiveUI
 	);
 
 	/// <summary>
-	/// A box that responds to pointer and focus input.
+	/// A container that responds to pointer and navigation input.
 	/// </summary>
 	public readonly struct Pressable : IElement
 	{
+		/// <inheritdoc/>
 		public Element Handle { get; }
 
-		/// <summary>An unclassed Pressable.</summary>
-		/// <remarks>
-		/// Declared explicitly, and this is load-bearing: for a struct, <c>new Pressable()</c> binds to
-		/// the implicit parameterless constructor rather than to the one whose arguments are all
-		/// optional. Without this it would zero-initialise instead, yielding a handle to no element
-		/// at all — and the node, along with every child added to it, would silently not render.
-		/// </remarks>
+		/// <summary>
+		/// Creates an element with no classes.
+		/// </summary>
 		public Pressable()
 			: this(default)
 		{
 		}
 
+		/// <summary>
+		/// Creates an element with the given classes, props, and ref.
+		/// </summary>
 		public Pressable(ClassSet className = default, PressableProps? props = null, ElementRef? elementRef = null)
 		{
 			Handle = Element.Host(
@@ -56,7 +58,9 @@ namespace ReactiveUI
 				PropsPool<PressableProps>.Add(props ?? new PressableProps()));
 		}
 
-		/// <inheritdoc cref="InlineStyle"/>
+		/// <summary>
+		/// The element's inline style.
+		/// </summary>
 		public ref InlineStyle Style => ref InlineArena.At(InlineArena.Slot(Handle._node));
 
 		public static implicit operator Element(Pressable self) => self.Handle;

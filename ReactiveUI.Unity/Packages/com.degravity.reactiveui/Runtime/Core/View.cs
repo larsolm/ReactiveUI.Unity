@@ -3,30 +3,32 @@
 namespace ReactiveUI
 {
 	/// <summary>
-	/// A box. The default container.
+	/// A general-purpose container element.
 	/// </summary>
 	public readonly struct View : IElement
 	{
+		/// <inheritdoc/>
 		public Element Handle { get; }
 
-		/// <summary>An unclassed View.</summary>
-		/// <remarks>
-		/// Declared explicitly, and this is load-bearing: for a struct, <c>new View()</c> binds to
-		/// the implicit parameterless constructor rather than to the one whose arguments are all
-		/// optional. Without this it would zero-initialise instead, yielding a handle to no element
-		/// at all — and the node, along with every child added to it, would silently not render.
-		/// </remarks>
+		/// <summary>
+		/// Creates an element with no classes.
+		/// </summary>
 		public View()
 			: this(default)
 		{
 		}
 
+		/// <summary>
+		/// Creates an element with the given classes and ref.
+		/// </summary>
 		public View(ClassSet className = default, ElementRef? elementRef = null)
 		{
 			Handle = Element.Host(HostKind.View, className, elementRef, -1);
 		}
 
-		/// <inheritdoc cref="InlineStyle"/>
+		/// <summary>
+		/// The element's inline style.
+		/// </summary>
 		public ref InlineStyle Style => ref InlineArena.At(InlineArena.Slot(Handle._node));
 
 		public static implicit operator Element(View self) => self.Handle;

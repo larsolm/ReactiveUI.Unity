@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Unity.Scripting.LifecycleManagement;
+using UnityEngine;
 
 namespace ReactiveUI
 {
@@ -274,31 +275,54 @@ namespace ReactiveUI
 			return true;
 		}
 
+		/// <summary>
+		/// Reads <c>transform</c> into its five channels. One that reads a custom property is deferred
+		/// whole, as <c>transition</c> is, and parsed once the cascade has substituted it.
+		/// </summary>
 		private static bool Transform(
 			string value, List<Declaration> into, List<string> diagnostics, string sourceName)
 		{
-			var x = default(StyleLength);
-			var y = default(StyleLength);
-			var scale = 1f;
-			var rotation = 0f;
-
 			var text = value.Trim();
 
-			if (!text.Equals("none", StringComparison.OrdinalIgnoreCase))
+			if (text.IndexOf("var(", StringComparison.OrdinalIgnoreCase) >= 0)
 			{
-				foreach (var function in ValueParser.SplitTop(text, ' '))
-				{
-					if (!TryTransformFunction(function, ref x, ref y, ref scale, ref rotation))
-					{
-						return Fail(diagnostics, sourceName, "transform", value);
-					}
-				}
+				var pending = StyleValue.OfReference(new PendingTransform(text));
+
+				for (var i = 0; i < PendingTransform.Longhands.Length; i++)
+					into.Add(new Declaration(PendingTransform.Longhands[i], pending));
+
+				return true;
 			}
+
+			if (!TryParseTransform(text, out var x, out var y, out var scale, out var rotation))
+				return Fail(diagnostics, sourceName, "transform", value);
 
 			into.Add(new Declaration(PropId.TranslateX, StyleValue.OfLength(x)));
 			into.Add(new Declaration(PropId.TranslateY, StyleValue.OfLength(y)));
-			into.Add(new Declaration(PropId.Scale, StyleValue.OfNumber(scale)));
+			into.Add(new Declaration(PropId.ScaleX, StyleValue.OfNumber(scale.x)));
+			into.Add(new Declaration(PropId.ScaleY, StyleValue.OfNumber(scale.y)));
 			into.Add(new Declaration(PropId.Rotation, StyleValue.OfNumber(rotation)));
+
+			return true;
+		}
+
+		/// <summary>Parses a <c>transform</c> function list with no <c>var()</c> left in it.</summary>
+		internal static bool TryParseTransform(
+			string text, out StyleLength x, out StyleLength y, out Vector2 scale, out float rotation)
+		{
+			x = default;
+			y = default;
+			scale = Vector2.one;
+			rotation = 0f;
+
+			if (text.Equals("none", StringComparison.OrdinalIgnoreCase))
+				return true;
+
+			foreach (var function in ValueParser.SplitTop(text, ' '))
+			{
+				if (!TryTransformFunction(function, ref x, ref y, ref scale, ref rotation))
+					return false;
+			}
 
 			return true;
 		}
@@ -435,7 +459,7 @@ namespace ReactiveUI
 			return StyleValue.OfLength(new StyleLength(value, LengthUnit.Percent));
 		}
 
-		private static bool TryTransformFunction(string function, ref StyleLength x, ref StyleLength y, ref float scale, ref float rotation)
+		private static bool TryTransformFunction(string function, ref StyleLength x, ref StyleLength y, ref Vector2 scale, ref float rotation)
 		{
 			if (Arguments(function, "translatex") is { } tx)
 				return Offset(tx, ref x);
@@ -443,8 +467,22 @@ namespace ReactiveUI
 			if (Arguments(function, "translatey") is { } ty)
 				return Offset(ty, ref y);
 
+			if (Arguments(function, "scalex") is { } sx)
+				return Bare(sx, ref scale.x);
+
+			if (Arguments(function, "scaley") is { } sy)
+				return Bare(sy, ref scale.y);
+
 			if (Arguments(function, "scale") is { } s)
-				return Bare(s, ref scale);
+			{
+				var factors = s.Split(',');
+				if (factors.Length is 0 or > 2 || !Bare(factors[0], ref scale.x))
+					return false;
+
+				scale.y = scale.x;
+
+				return factors.Length == 1 || Bare(factors[1], ref scale.y);
+			}
 
 			if (Arguments(function, "rotate") is { } r)
 			{
@@ -713,7 +751,7 @@ namespace ReactiveUI
 	/// substituted text does not name is left unset, which is what the CSS library does with the
 	/// longhands a literal shorthand omits.
 	/// </remarks>
-	internal sealed class PendingTransition
+	internal sealed class PendingTransition : PendingShorthand
 	{
 		internal static readonly PropId[] Longhands =
 		{
@@ -723,24 +761,12 @@ namespace ReactiveUI
 			PropId.TransitionDelay,
 		};
 
-		// Deep enough for a token that aliases another; a cycle would otherwise never end.
-		private const int MaxDepth = 8;
-
-		private readonly string _text;
-
-		internal PendingTransition(string text)
+		internal PendingTransition(string text) : base(text)
 		{
-			_text = text;
 		}
 
-		internal string Text => _text;
-
-		internal bool TryResolve(PropId id, IReadOnlyDictionary<int, StyleValue> scope, out StyleValue resolved)
-		{
-			resolved = default;
-
-			return TrySubstitute(_text, scope, 0, out var text) && TryRead(text, id, out resolved, out _);
-		}
+		protected override bool TryReadSubstituted(string text, PropId id, out StyleValue value) =>
+			TryRead(text, id, out value, out _);
 
 		/// <summary>
 		/// Reads one longhand out of a single transition. <paramref name="valid"/> tells a shorthand
@@ -804,6 +830,72 @@ namespace ReactiveUI
 
 			return found;
 		}
+
+	}
+
+	/// <summary>
+	/// A <c>transform</c> that reads a custom property, carried as its text and split into the five
+	/// channels once the cascade has substituted it.
+	/// </summary>
+	internal sealed class PendingTransform : PendingShorthand
+	{
+		internal static readonly PropId[] Longhands =
+		{
+			PropId.TranslateX,
+			PropId.TranslateY,
+			PropId.ScaleX,
+			PropId.ScaleY,
+			PropId.Rotation,
+		};
+
+		internal PendingTransform(string text) : base(text)
+		{
+		}
+
+		protected override bool TryReadSubstituted(string text, PropId id, out StyleValue value)
+		{
+			value = default;
+
+			if (!Shorthand.TryParseTransform(text, out var x, out var y, out var scale, out var rotation))
+				return false;
+
+			switch (id)
+			{
+				case PropId.TranslateX: value = StyleValue.OfLength(x); return true;
+				case PropId.TranslateY: value = StyleValue.OfLength(y); return true;
+				case PropId.ScaleX: value = StyleValue.OfNumber(scale.x); return true;
+				case PropId.ScaleY: value = StyleValue.OfNumber(scale.y); return true;
+				case PropId.Rotation: value = StyleValue.OfNumber(rotation); return true;
+				default: return false;
+			}
+		}
+	}
+
+	/// <summary>
+	/// A shorthand that reads a custom property, carried through the sheet as its text and read into
+	/// a longhand only once the cascade has a scope to substitute it against.
+	/// </summary>
+	internal abstract class PendingShorthand
+	{
+		// Deep enough for a token that aliases another; a cycle would otherwise never end.
+		private const int MaxDepth = 8;
+
+		protected PendingShorthand(string text)
+		{
+			Text = text;
+		}
+
+		internal string Text { get; }
+
+		internal bool TryResolve(PropId id, IReadOnlyDictionary<int, StyleValue> scope, out StyleValue resolved)
+		{
+			resolved = default;
+
+			return TrySubstitute(Text, scope, 0, out var text) && TryReadSubstituted(text, id, out resolved);
+		}
+
+		/// <summary>Reads one longhand out of the substituted text.</summary>
+		protected abstract bool TryReadSubstituted(string text, PropId id, out StyleValue value);
 
 		/// <summary>
 		/// Replaces every <c>var()</c> in the text with the custom property's own text. An unresolved

@@ -4,38 +4,37 @@ using Unity.Scripting.LifecycleManagement;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// How the player is currently driving the interface.
+	/// How the player is currently interacting with the UI.
 	/// </summary>
 	public enum InputModality
 	{
+		/// <summary>A mouse or touch pointer.</summary>
 		Pointer,
+
+		/// <summary>Directional navigation from a gamepad or keyboard.</summary>
 		Navigation,
 	}
 
 	/// <summary>
-	/// Tracks whether the player is using a pointer or a gamepad/keyboard.
+	/// Tracks the player's current <see cref="InputModality"/>.
 	/// </summary>
-	/// <remarks>
-	/// This is what separates <c>:focus</c> from <c>:focus-visible</c>. A button clicked with a
-	/// mouse is focused, but drawing a navigation highlight around it looks like a bug; the same
-	/// button reached with a stick must show one, or the player cannot tell where they are. CSS
-	/// solved this with <c>:focus-visible</c>, and the distinction is only meaningful if something
-	/// knows which device is in charge.
-	/// </remarks>
 	[AutoStaticsCleanup]
 	public static partial class InputModalityTracker
 	{
+		/// <summary>
+		/// The current input modality.
+		/// </summary>
 		public static InputModality Current { get; private set; } = InputModality.Pointer;
 
 		/// <summary>
-		/// Raised when the modality changes, so focus visuals can be re-resolved.
+		/// Raised when <see cref="Current"/> changes.
 		/// </summary>
 		public static event Action<InputModality> Changed = null!;
 
 		/// <summary>
 		/// Called when a pointer moves or clicks.
 		/// </summary>
-		public static void NotePointer()
+		internal static void NotePointer()
 		{
 			Set(InputModality.Pointer);
 		}
@@ -43,7 +42,7 @@ namespace ReactiveUI
 		/// <summary>
 		/// Called when a navigation input (stick, d-pad, arrow keys, tab) is used.
 		/// </summary>
-		public static void NoteNavigation()
+		internal static void NoteNavigation()
 		{
 			Set(InputModality.Navigation);
 		}

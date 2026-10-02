@@ -717,10 +717,10 @@ namespace ReactiveUI
 				if (value.Reference is CalcExpr calc)
 					return calc.TryResolve(scope, out resolved);
 
-				// A transition shorthand that reads a custom property can only be split once it has
-				// been substituted, so each of its longhands arrives here holding the whole text.
-				if (value.Reference is PendingTransition transition)
-					return transition.TryResolve(id, scope, out resolved);
+				// A transition or transform that reads a custom property can only be split once it
+				// has been substituted, so each of its longhands arrives here holding the whole text.
+				if (value.Reference is PendingShorthand pending)
+					return pending.TryResolve(id, scope, out resolved);
 
 				// A shadow list or a gradient is a composite whose colours may be references while the
 				// rest of the value is already final, so it rebuilds itself rather than being replaced

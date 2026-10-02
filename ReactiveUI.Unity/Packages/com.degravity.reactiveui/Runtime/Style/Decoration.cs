@@ -126,13 +126,10 @@ namespace ReactiveUI
 	}
 
 	/// <summary>
-	/// How one border edge is drawn — the CSS <c>border-style</c> keywords.
+	/// The CSS <c>border-style</c> keywords.
 	/// </summary>
 	/// <remarks>
-	/// <c>Solid</c> is deliberately the zero value, and so the default a style with no
-	/// <c>border-style</c> falls back to. CSS defaults to <c>none</c>, but a border here has always
-	/// been a width and a colour — every sheet that says <c>border-width</c> without a style means
-	/// the line it can already see, and defaulting to CSS would erase all of them.
+	/// A border with no <c>border-style</c> is <see cref="Solid"/>, unlike CSS where it is <c>none</c>.
 	/// </remarks>
 	public enum BorderStyle : byte
 	{
@@ -157,7 +154,7 @@ namespace ReactiveUI
 	/// content; until 2026-08-16 only the top edge's width and colour reached the painter, which drew
 	/// one uniform stroke. Carrying all four here is what lets the two agree.
 	/// </remarks>
-	public readonly struct BorderPaint : IEquatable<BorderPaint>
+	internal readonly struct BorderPaint : IEquatable<BorderPaint>
 	{
 		public readonly float Top;
 		public readonly float Right;
@@ -266,7 +263,7 @@ namespace ReactiveUI
 	/// Lengths stay unresolved so a shadow written in <c>rem</c> scales with the rest of the UI when
 	/// the root size changes, rather than being frozen at whatever it meant when the sheet was built.
 	/// </remarks>
-	public readonly struct Shadow : IEquatable<Shadow>
+	internal readonly struct Shadow : IEquatable<Shadow>
 	{
 		public Color Color => _ink._value;
 
@@ -314,7 +311,7 @@ namespace ReactiveUI
 	/// <summary>
 	/// The comma-separated list one <c>box-shadow</c> declaration produces, first entry on top.
 	/// </summary>
-	public sealed class ShadowList : IEquatable<ShadowList>, IVarDependent
+	internal sealed class ShadowList : IEquatable<ShadowList>, IVarDependent
 	{
 		public int Count => _shadows.Length;
 
@@ -402,7 +399,7 @@ namespace ReactiveUI
 	/// would mean building a gradient engine able to express something the mesh painter already draws
 	/// in one pass. Both names set the same property, so the later declaration wins.
 	/// </remarks>
-	public sealed class Checker : IEquatable<Checker>, IVarDependent
+	internal sealed class Checker : IEquatable<Checker>, IVarDependent
 	{
 		public readonly StyleLength CellSize;
 

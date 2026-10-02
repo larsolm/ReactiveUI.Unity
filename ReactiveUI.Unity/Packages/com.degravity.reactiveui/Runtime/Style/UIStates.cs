@@ -10,7 +10,7 @@ namespace ReactiveUI
 	/// game-specific <c>:scoring</c> the same kind of thing.
 	/// </summary>
 	[NoAutoStaticsCleanup]
-	public static class UiStates
+	internal static class UiStates
 	{
 		private const int MaxBits = 64;
 

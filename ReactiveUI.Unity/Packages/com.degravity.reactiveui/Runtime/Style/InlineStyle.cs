@@ -16,15 +16,10 @@ namespace ReactiveUI
 	}
 
 	/// <summary>
-	/// Per-instance style set from C#, for values a stylesheet cannot know: a tile's board position,
-	/// a bar's measured width, a rarity colour handed down from game data. Applied on top of the
-	/// cascaded result at the highest precedence, and deliberately kept out of the computed-style
-	/// cache key so a per-instance value can never mint a shared rule.
+	/// Style properties set from code on a single element.
 	/// </summary>
 	/// <remarks>
-	/// Four properties inline and a spill beyond that, so every site in the game sets its values
-	/// without allocating. Reached through a <c>ref</c>-returning <c>Style</c> property on the
-	/// element — see <see cref="InlineArena"/> for why that has to be a ref.
+	/// Inline values take precedence over stylesheet rules.
 	/// </remarks>
 	public struct InlineStyle
 	{
@@ -38,27 +33,64 @@ namespace ReactiveUI
 
 		private InlineVar[]? _vars;
 
-		public int Count { get; private set; }
+		internal int Count { get; private set; }
 
-		public int VarCount { get; private set; }
+		internal int VarCount { get; private set; }
 
+		/// <summary>
+		/// Sets a length property.
+		/// </summary>
 		public StyleLength this[LengthProp prop]
 		{
 			set => Set(prop._id, StyleValue.OfLength(value));
 		}
 
+		/// <summary>
+		/// Sets a color property.
+		/// </summary>
 		public Color this[ColorProp prop]
 		{
-			set => Set(prop._id, StyleValue.OfColor(value));
-		}
+			set
+			{
+				var color = StyleValue.OfColor(value);
 
-		public float this[FloatProp prop]
-		{
-			set => Set(prop._id, StyleValue.OfNumber(value));
+				if (prop._allSides)
+				{
+					Set(PropId.BorderTopColor, color);
+					Set(PropId.BorderRightColor, color);
+					Set(PropId.BorderBottomColor, color);
+					Set(PropId.BorderLeftColor, color);
+
+					return;
+				}
+
+				Set(prop._id, color);
+			}
 		}
 
 		/// <summary>
-		/// Sets a custom property, e.g. <c>Style["--accent"] = rarity.Color</c>.
+		/// Sets a numeric property.
+		/// </summary>
+		public float this[FloatProp prop]
+		{
+			set
+			{
+				var number = StyleValue.OfNumber(value);
+
+				if (prop._bothAxes)
+				{
+					Set(PropId.ScaleX, number);
+					Set(PropId.ScaleY, number);
+
+					return;
+				}
+
+				Set(prop._id, number);
+			}
+		}
+
+		/// <summary>
+		/// Sets a CSS custom property, such as <c>Style["--accent"] = color</c>.
 		/// </summary>
 		public StyleValue this[string customProperty]
 		{
@@ -86,17 +118,13 @@ namespace ReactiveUI
 			}
 		}
 
-		/// <summary>
-		/// The escape hatch for properties with no typed handle.
-		/// </summary>
-		public StyleValue this[PropId prop]
+		internal StyleValue this[PropId prop]
 		{
 			set => Set(prop, value);
 		}
 
 		/// <summary>
-		/// Sets all four corner radii, since a uniform radius is one value in CSS but four properties
-		/// in the model.
+		/// Sets all four corner radii.
 		/// </summary>
 		public void SetRadius(StyleLength radius)
 		{
@@ -109,7 +137,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Sets a uniform border, the twelve properties CSS writes as one.
+		/// Sets the width, color, and style of all four borders.
 		/// </summary>
 		public void SetBorder(float width, Color color, BorderStyle style = BorderStyle.Solid)
 		{
@@ -132,7 +160,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Sets a single centred glow, the shape most per-instance shadows take.
+		/// Sets a single centered box shadow with the given color and blur radius.
 		/// </summary>
 		public void SetGlow(Color color, float blur)
 		{

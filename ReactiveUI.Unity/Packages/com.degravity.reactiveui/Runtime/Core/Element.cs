@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections;
+using System.ComponentModel;
 
 namespace ReactiveUI
 {
 	/// <summary>
-	/// One declared element. A handle into the pass's arena.
+	/// A declared element of any type.
 	/// </summary>
 	public readonly struct Element : IElement, IEquatable<Element>
 	{
@@ -15,8 +16,12 @@ namespace ReactiveUI
 			_node = node;
 		}
 
+		/// <inheritdoc/>
 		public Element Handle => this;
 
+		/// <summary>
+		/// Whether this is the default, empty element.
+		/// </summary>
 		public bool IsNone => _node == 0;
 
 		/// <summary>
@@ -25,18 +30,12 @@ namespace ReactiveUI
 		public ElementList Children => new(_node);
 
 		/// <summary>
-		/// This element when <paramref name="value"/> holds, and nothing otherwise.
+		/// Returns <paramref name="self"/> when <paramref name="value"/> is true, otherwise null.
 		/// </summary>
-		/// <remarks>
-		/// Declared on every element type rather than here alone, because an operator is only looked up
-		/// on its own operand types — one reached through a component's implicit conversion to
-		/// <see cref="Element"/> would not be found. This overload is what a helper returning a bare
-		/// <see cref="Element"/> binds to.
-		/// </remarks>
 		public static Element? operator &(bool value, Element self) => value ? self : (Element?)null;
 
 		/// <summary>
-		/// This element when <paramref name="value"/> holds, and nothing otherwise.
+		/// Returns <paramref name="self"/> when <paramref name="value"/> is true, otherwise null.
 		/// </summary>
 		public static Element? operator &(Element self, bool value) => value ? self : (Element?)null;
 
@@ -49,8 +48,9 @@ namespace ReactiveUI
 		IEnumerator IEnumerable.GetEnumerator() => throw Ui.NotEnumerable(nameof(Element));
 
 		/// <summary>
-		/// Declares a component with props.
+		/// Declares a <typeparamref name="TComponent"/> with the given props. Used by generated code.
 		/// </summary>
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public static Element Of<TComponent, TProps>(TProps? props)
 			where TComponent : struct, IComponent<TProps>
 			where TProps : struct, IEquatable<TProps>
@@ -61,8 +61,9 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Declares a component that takes no props.
+		/// Declares a <typeparamref name="TComponent"/> that takes no props. Used by generated code.
 		/// </summary>
+		[EditorBrowsable(EditorBrowsableState.Never)]
 		public static Element Of<TComponent>()
 			where TComponent : struct, IComponent
 		{
@@ -97,15 +98,13 @@ namespace ReactiveUI
 	/// Implemented by every element type.
 	/// </summary>
 	/// <remarks>
-	/// <see cref="IEnumerable"/> is here only because C# requires it of a collection-initializer
-	/// target; enumerating an element is a bug. Every <c>Add</c> lives on
-	/// <see cref="ElementExtensions"/> instead of here, because a collection initializer accepts an
-	/// extension <c>Add</c> and an element is a struct with no base class to inherit one from.
+	/// Implements <see cref="IEnumerable"/> only to support collection-initializer syntax for children;
+	/// enumerating an element throws.
 	/// </remarks>
 	public interface IElement : IEnumerable
 	{
 		/// <summary>
-		/// This element's identity in the arena.
+		/// The underlying <see cref="Element"/>.
 		/// </summary>
 		Element Handle { get; }
 	}

@@ -5,7 +5,7 @@ namespace ReactiveUI
 	public static partial class Ui
 	{
 		/// <summary>
-		/// State that persists across renders; setting it schedules a re-render.
+		/// Returns state that persists across renders; setting it re-renders the component.
 		/// </summary>
 		public static State<T> UseState<T>(T initial)
 		{
@@ -14,7 +14,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// A mutable box built on the first render, which survives re-renders and never triggers one.
+		/// Returns a mutable box that persists across renders; changing it does not re-render.
 		/// </summary>
 		public static Ref<T> UseRef<TState, T>(TState state, Func<TState, T> initial)
 		{
@@ -23,8 +23,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// <see cref="UseRef{TState, T}"/> holding a default <typeparamref name="T"/>, for the box
-		/// whose starting value needs nothing built.
+		/// Returns a mutable box, initialized to a new <typeparamref name="T"/>, that persists across renders.
 		/// </summary>
 		public static Ref<T> UseRef<T>()
 			where T : new()
@@ -34,7 +33,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Builds a value on the first render and returns that same one ever after.
+		/// Creates a value on the first render and returns the same value on every later render.
 		/// </summary>
 		public static T UseConstant<TState, T>(TState state, Func<TState, T> create)
 		{
@@ -42,7 +41,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// <see cref="UseConstant{TState, T}"/> for a value built from nothing.
+		/// Creates a new <typeparamref name="T"/> on the first render and returns the same value on every later render.
 		/// </summary>
 		public static T UseConstant<T>()
 			where T : new()
@@ -51,13 +50,8 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Recomputes only when <paramref name="deps"/> changes.
+		/// Returns the cached result of <paramref name="factory"/>, recomputing it when <paramref name="deps"/> changes.
 		/// </summary>
-		/// <remarks>
-		/// Write <paramref name="factory"/> as a <c>static</c> lambda and reach everything it needs
-		/// through <paramref name="state"/>; capturing a local instead allocates a closure on every
-		/// render, including the ones the memo skips.
-		/// </remarks>
 		public static TValue UseMemo<TState, TValue, TDeps>(TState state, Func<TState, TValue> factory, TDeps deps)
 			where TDeps : IEquatable<TDeps>
 		{
@@ -67,8 +61,8 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Runs after layout when <paramref name="deps"/> changes. Return a cleanup action to undo
-		/// what the effect did; it runs before the next invocation and again at unmount.
+		/// Runs <paramref name="effect"/> after layout whenever <paramref name="deps"/> changes and the
+		/// returned cleanup action runs before the next invocation and at unmount.
 		/// </summary>
 		public static void UseEffect<TState, TDeps>(TState state, Func<TState, Action?> effect, TDeps deps)
 			where TDeps : IEquatable<TDeps>
@@ -78,7 +72,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Runs once, when the component mounts. Return a cleanup action to run at unmount.
+		/// Runs <paramref name="effect"/> once after the component mounts and the returned cleanup action runs at unmount.
 		/// </summary>
 		public static void UseEffect<TState>(TState state, Func<TState, Action?> effect)
 		{
@@ -86,8 +80,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// A handler built from <paramref name="state"/> instead of a closure over it. The returned
-		/// delegate keeps one identity for the component's life and always sees the latest state.
+		/// Returns a stable handler that invokes <paramref name="callback"/> with the latest <paramref name="state"/>.
 		/// </summary>
 		public static Action UseCallback<TState>(TState state, Action<TState> callback)
 		{
@@ -97,8 +90,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// <see cref="UseCallback{TState}(TState, Action{TState})"/> for a handler that is also
-		/// passed an argument by whatever raises it.
+		/// Returns a stable handler that invokes <paramref name="callback"/> with the latest <paramref name="state"/> and its argument.
 		/// </summary>
 		public static Action<TArg> UseCallback<TState, TArg>(TState state, Action<TState, TArg> callback)
 		{
@@ -108,8 +100,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// A no-argument handler that calls <paramref name="callback"/> with a fixed
-		/// <paramref name="argument"/> — what a leaf does with the delegate its parent handed down.
+		/// Returns a stable handler that invokes <paramref name="callback"/> with the latest <paramref name="argument"/>.
 		/// </summary>
 		public static Action UseCallback<TArg>(Action<TArg>? callback, TArg argument)
 		{
@@ -117,7 +108,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// A stable handle to hang on an element, for driving it imperatively between renders.
+		/// Returns a persistent handle that can be attached to an element.
 		/// </summary>
 		public static ElementRef UseElementRef()
 		{

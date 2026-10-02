@@ -4,14 +4,8 @@ using UnityEngine.InputSystem;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// The scene entry point. Subclass it, return your root element, and drop it on a
-	/// RectTransform under a Canvas.
+	/// Hosts a ReactiveUI tree under a Canvas. Subclass it and implement <see cref="CreateRoot"/>.
 	/// </summary>
-	/// <remarks>
-	/// Ticks in <c>LateUpdate</c> so the whole pipeline — render, layout, paint — completes before
-	/// uGUI rebuilds its canvas in the same frame. That ordering is what lets text measure itself
-	/// through TextMeshPro without re-entering uGUI's own layout.
-	/// </remarks>
 	public abstract class UiRoot : MonoBehaviour
 	{
 		[SerializeField]
@@ -20,7 +14,7 @@ namespace ReactiveUI
 		[Tooltip("Pixels per rem. Scale the entire UI by changing this.")]
 		[SerializeField]
 		[Min(1f)]
-		protected float _remSize = 32f;
+		private float _remSize = 32f;
 
 		[Tooltip("Optional Vector2 action that moves focus. Empty uses arrows, d-pad and left stick.")]
 		[SerializeField]
@@ -62,12 +56,12 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Builds the root element.
+		/// Returns the root element of the tree.
 		/// </summary>
 		protected abstract Element CreateRoot();
 
 		/// <summary>
-		/// Changes the pixels per rem, restyling the live tree when there is one.
+		/// Sets the number of pixels per <c>rem</c> and restyles the tree.
 		/// </summary>
 		protected void SetRemSize(float remSize)
 		{
@@ -76,12 +70,8 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Supplies the actions navigation runs on.
+		/// Supplies the actions navigation runs on, from the inspector's action references.
 		/// </summary>
-		/// <remarks>
-		/// Reads the inspector's action references by default. Override to hand over actions that live
-		/// somewhere a serialized reference cannot reach, such as a generated actions wrapper.
-		/// </remarks>
 		private UiInputBindings? CreateInputBindings()
 		{
 			if (_navigateAction == null && _submitAction == null)

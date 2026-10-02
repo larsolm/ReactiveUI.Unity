@@ -3,7 +3,7 @@
 namespace ReactiveUI
 {
 	/// <summary>
-	/// Which way a <see cref="Scroll"/> scrolls.
+	/// The directions a <see cref="Scroll"/> scrolls in.
 	/// </summary>
 	public enum ScrollAxis
 	{
@@ -13,35 +13,38 @@ namespace ReactiveUI
 	}
 
 	/// <summary>
-	/// <see cref="Scroll"/>'s props.
+	/// Props for <see cref="Scroll"/>.
 	/// </summary>
+	/// <param name="Axis">The directions the content scrolls in.</param>
 	public readonly record struct ScrollProps(ScrollAxis Axis = ScrollAxis.Vertical);
 
 	/// <summary>
-	/// A clipped, scrollable viewport.
+	/// A container that clips its children and scrolls them.
 	/// </summary>
 	public readonly struct Scroll : IElement
 	{
+		/// <inheritdoc/>
 		public Element Handle { get; }
 
-		/// <summary>An unclassed Scroll.</summary>
-		/// <remarks>
-		/// Declared explicitly, and this is load-bearing: for a struct, <c>new Scroll()</c> binds to
-		/// the implicit parameterless constructor rather than to the one whose arguments are all
-		/// optional. Without this it would zero-initialise instead, yielding a handle to no element
-		/// at all — and the node, along with every child added to it, would silently not render.
-		/// </remarks>
+		/// <summary>
+		/// Creates an element with no classes.
+		/// </summary>
 		public Scroll()
 			: this(default)
 		{
 		}
 
+		/// <summary>
+		/// Creates an element with the given classes, props, and ref.
+		/// </summary>
 		public Scroll(ClassSet className = default, ScrollProps? props = null, ElementRef? elementRef = null)
 		{
 			Handle = Element.Host(HostKind.Scroll, className, elementRef, PropsPool<ScrollProps>.Add(props ?? new ScrollProps()));
 		}
 
-		/// <inheritdoc cref="InlineStyle"/>
+		/// <summary>
+		/// The element's inline style.
+		/// </summary>
 		public ref InlineStyle Style => ref InlineArena.At(InlineArena.Slot(Handle._node));
 
 		public static implicit operator Element(Scroll self) => self.Handle;

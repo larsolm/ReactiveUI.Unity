@@ -148,7 +148,7 @@ namespace ReactiveUI.Tests
 				Assert.AreEqual(before.Value.Tag, after.Value.Tag, $"declaration {i} ({before.Id})");
 				Assert.AreEqual(before.Value.Reference?.GetType(), after.Value.Reference?.GetType());
 
-				if (before.Value.Reference is not PendingTransition)
+				if (before.Value.Reference is not PendingShorthand)
 					Assert.AreEqual(before.Value.Reference, after.Value.Reference, $"declaration {i} ({before.Id})");
 			}
 

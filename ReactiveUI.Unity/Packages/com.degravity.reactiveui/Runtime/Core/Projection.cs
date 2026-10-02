@@ -4,24 +4,8 @@ using System.Collections.Generic;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// A list of children described but not yet built — the closure-free form of
-	/// <c>items.Select(item =&gt; new Child(...))</c>.
+	/// A list mapped to child elements, created by <see cref="Ui.Each{TSource, TState}(IList{TSource}, TState, Func{TSource, TState, Element?})"/>.
 	/// </summary>
-	/// <remarks>
-	/// <para>
-	/// A LINQ projection allocates three things per render: the iterator, the display class holding
-	/// whatever the selector closed over, and the delegate. This carries the same information as a
-	/// struct, so the only requirement is that the selector be written <c>static</c> and read what it
-	/// needs from <c>state</c> — a non-capturing lambda is cached by the compiler, so nothing is
-	/// allocated at all.
-	/// </para>
-	/// <para>
-	/// It deliberately does <em>not</em> implement <see cref="IEnumerable{T}"/>. The
-	/// <c>Add(IEnumerable&lt;Element&gt;)</c> overload is not generic and would win overload resolution
-	/// against the one that takes this, which would quietly put back the iterator. Not being a
-	/// sequence is what keeps that from compiling.
-	/// </para>
-	/// </remarks>
 	public readonly struct Projection<TSource, TState>
 	{
 		private readonly IList<TSource>? _source;
@@ -50,7 +34,7 @@ namespace ReactiveUI
 	}
 
 	/// <summary>
-	/// <see cref="Projection{TSource, TState}"/> for a selector that also wants each item's index.
+	/// A list mapped to child elements with each item's index, created by <see cref="Ui.Each{TSource, TState}(IList{TSource}, TState, Func{TSource, int, TState, Element?})"/>.
 	/// </summary>
 	public readonly struct IndexedProjection<TSource, TState>
 	{

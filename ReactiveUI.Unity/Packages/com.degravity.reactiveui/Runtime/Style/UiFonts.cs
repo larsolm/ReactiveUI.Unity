@@ -7,23 +7,18 @@ using UnityEngine;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// Maps a CSS <c>font-family</c> and <c>font-weight</c> onto a TextMeshPro asset.
+	/// Maps CSS <c>font-family</c> names and weights to TextMeshPro font assets.
 	/// </summary>
 	/// <remarks>
-	/// Stylesheets name fonts as strings, so something has to hold the mapping. Populate it from
-	/// <c>@font-face</c> rules, or register directly from C# when a font comes from somewhere
-	/// Resources cannot reach.
-	/// <para>
-	/// A family may hold one face per weight, because a TMP asset is a baked atlas of one face and
-	/// there is no synthetic bolding worth having. Registering without a weight files the face under
-	/// 400. A family whose asset carries its own TMP weight table needs only that one registration —
-	/// the text host hands the weight to TextMeshPro too, which swaps the typeface from the table.
-	/// </para>
+	/// Fonts declared with <c>@font-face</c> are registered automatically.
 	/// </remarks>
 	// Only ever repopulated by a sheet rebuild, which entering Play mode does not trigger.
 	[NoAutoStaticsCleanup]
 	public static partial class UiFonts
 	{
+		/// <summary>
+		/// The weight of a normal face, 400.
+		/// </summary>
 		public const int NormalWeight = 400;
 
 		private static readonly Dictionary<string, List<(int Weight, TMP_FontAsset Font)>> s_families =
@@ -33,6 +28,12 @@ namespace ReactiveUI
 		// otherwise warn every frame it is styled.
 		private static readonly HashSet<(string Family, int Weight)> s_warned = new();
 
+		/// <summary>
+		/// Registers <paramref name="font"/> as the face of <paramref name="family"/> at <paramref name="weight"/>.
+		/// </summary>
+		/// <remarks>
+		/// A family resolves to its registered face nearest the requested weight.
+		/// </remarks>
 		public static void Register(string family, TMP_FontAsset font, int weight = NormalWeight)
 		{
 			if (string.IsNullOrEmpty(family) || font == null)
@@ -62,7 +63,7 @@ namespace ReactiveUI
 		/// face. A family with no face at that exact weight falls back to its nearest one, so a sheet
 		/// that never mentions <c>font-weight</c> keeps working against a single registered face.
 		/// </summary>
-		public static TMP_FontAsset? Resolve(string? family, int weight = NormalWeight)
+		internal static TMP_FontAsset? Resolve(string? family, int weight = NormalWeight)
 		{
 			if (string.IsNullOrEmpty(family))
 				return null;
@@ -103,7 +104,7 @@ namespace ReactiveUI
 		/// <see cref="Resolve"/> has already picked it, or there is no such face anywhere and
 		/// asking would send every glyph down TMP's missing-character path.
 		/// </remarks>
-		public static bool HasWeightFace(TMP_FontAsset? font, int weight)
+		internal static bool HasWeightFace(TMP_FontAsset? font, int weight)
 		{
 			// TMP indexes the table by hundreds — Thin at 1 through Black at 9 — and 400 is the
 			// base face rather than a row in it.
@@ -124,25 +125,26 @@ namespace ReactiveUI
 	}
 
 	/// <summary>
-	/// Maps a <c>background-image: resource("…")</c> path onto a texture.
+	/// Maps <c>background-image: resource("…")</c> paths to textures.
 	/// </summary>
 	/// <remarks>
-	/// Lives beside <see cref="UiFonts"/> because it is the same job — a CSS name resolved to a
-	/// Unity asset — and because a style is applied far more often than a sheet is parsed, so the
-	/// lookup has to be cached rather than hitting <c>Resources.Load</c> per restyle.
+	/// Unregistered paths are loaded from <c>Resources</c>.
 	/// </remarks>
 	public static class UiTextures
 	{
 		[NoAutoStaticsCleanup]
 		private static readonly Dictionary<string, Texture?> s_textures = new(StringComparer.Ordinal);
 
+		/// <summary>
+		/// Registers <paramref name="texture"/> for <paramref name="path"/>.
+		/// </summary>
 		public static void Register(string path, Texture texture)
 		{
 			if (!string.IsNullOrEmpty(path))
 				s_textures[path] = texture;
 		}
 
-		public static Texture? Resolve(string? path)
+		internal static Texture? Resolve(string? path)
 		{
 			if (string.IsNullOrEmpty(path))
 				return null;

@@ -4,28 +4,49 @@ using UnityEngine;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// The space a UI is laid out in.
+	/// The size of the area a UI is laid out in.
 	/// </summary>
 	public readonly struct Viewport : IEquatable<Viewport>
 	{
+		/// <summary>
+		/// The width in pixels.
+		/// </summary>
 		public readonly float Width;
+
+		/// <summary>
+		/// The height in pixels.
+		/// </summary>
 		public readonly float Height;
 
+		/// <summary>
+		/// Creates a viewport of the given size.
+		/// </summary>
 		public Viewport(float width, float height)
 		{
 			Width = width;
 			Height = height;
 		}
 
+		/// <summary>
+		/// Creates a viewport of the given size.
+		/// </summary>
 		public Viewport(Vector2 size) : this(size.x, size.y)
 		{
 		}
 
+		/// <summary>
+		/// Whether the height is at least the width.
+		/// </summary>
 		public bool IsPortrait => Height >= Width;
 
+		/// <summary>
+		/// Whether the width is greater than the height.
+		/// </summary>
 		public bool IsLandscape => Width > Height;
 
-		/// <summary>Width over height, or zero when the rect has no area to divide by.</summary>
+		/// <summary>
+		/// The width divided by the height, or zero when the height is zero.
+		/// </summary>
 		public float AspectRatio => Height > 0f ? Width / Height : 0f;
 
 		public bool Equals(Viewport other)
@@ -59,7 +80,7 @@ namespace ReactiveUI
 	/// reason a compiled breakpoint keeps its unit: a <c>rem</c> breakpoint has to move when the UI is
 	/// rescaled.
 	/// </remarks>
-	public readonly struct MediaEnvironment : IEquatable<MediaEnvironment>
+	internal readonly struct MediaEnvironment : IEquatable<MediaEnvironment>
 	{
 		public readonly Viewport Viewport;
 		public readonly float RemSize;

@@ -8,7 +8,7 @@ namespace ReactiveUI
 	/// <summary>
 	/// One resolved property.
 	/// </summary>
-	public readonly struct PropEntry
+	internal readonly struct PropEntry
 	{
 		public readonly PropId Id;
 		public readonly StyleValue Value;
@@ -32,7 +32,7 @@ namespace ReactiveUI
 	/// baked stylesheet and the runtime form are the same thing.
 	/// </remarks>
 	[NoAutoStaticsCleanup]
-	public sealed class ComputedStyle
+	internal sealed class ComputedStyle
 	{
 		public static readonly ComputedStyle Empty = new(Array.Empty<PropEntry>());
 
@@ -161,7 +161,7 @@ namespace ReactiveUI
 			return new TransitionSpec(duration.AsNumber(), delay, easing);
 		}
 
-		private static bool IsTransformChannel(PropId id) => id is PropId.TranslateX or PropId.TranslateY or PropId.Scale or PropId.Rotation;
+		private static bool IsTransformChannel(PropId id) => id is PropId.TranslateX or PropId.TranslateY or PropId.ScaleX or PropId.ScaleY or PropId.Rotation;
 
 		// `border-color` is four longhands, and BorderTopColor stands for the group the way
 		// TranslateX stands for the transform — naming one side and snapping the other three is

@@ -10,7 +10,7 @@ namespace ReactiveUI
 	/// (arrows, d-pad, stick; Enter, Space, gamepad South). Supplying them is what makes navigation obey
 	/// the player's rebinds and the map the game enables — a disabled action navigates nothing.
 	/// </remarks>
-	public sealed class UiInputBindings
+	internal sealed class UiInputBindings
 	{
 		/// <summary>A Vector2 action; its value is snapped to an axis and repeats while held.</summary>
 		public InputAction? Navigate { get; }

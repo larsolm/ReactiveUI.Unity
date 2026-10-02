@@ -5,18 +5,15 @@ using Obvious.Soap;
 namespace ReactiveUI.Soap
 {
 	/// <summary>
-	/// Hooks that read Soap variables, collections and events.
+	/// Hooks that read Soap variables, collections, and events.
 	/// </summary>
 	/// <remarks>
-	/// A class of its own rather than more members on <see cref="Ui"/>: Soap is an optional
-	/// dependency, so these live in an assembly that only compiles when <c>REACTIVEUI_SOAP</c> is
-	/// defined, and a partial class cannot span two assemblies. <c>using static
-	/// ReactiveUI.Soap.SoapHooks;</c> keeps call sites reading the same as the built-in hooks.
+	/// Available when the Soap package is installed. Intended for use with <c>using static ReactiveUI.Soap.SoapHooks;</c>.
 	/// </remarks>
 	public static class SoapHooks
 	{
 		/// <summary>
-		/// Reads a Soap variable and re-renders when it changes.
+		/// Returns the value of a Soap variable and re-renders the component when it changes.
 		/// </summary>
 		public static T UseScriptable<T>(ScriptableVariable<T> variable)
 		{
@@ -28,7 +25,7 @@ namespace ReactiveUI.Soap
 		}
 
 		/// <summary>
-		/// Reads a Soap list and re-renders when items are added, removed or cleared.
+		/// Returns a Soap list and re-renders the component when items are added, removed, or cleared.
 		/// </summary>
 		public static IList<T> UseScriptable<T>(ScriptableList<T> list)
 		{
@@ -40,7 +37,7 @@ namespace ReactiveUI.Soap
 		}
 
 		/// <summary>
-		/// Reads a Soap dictionary and re-renders when entries are added, removed or cleared.
+		/// Returns a Soap dictionary and re-renders the component when entries are added, removed, or cleared.
 		/// </summary>
 		public static IDictionary<TKey, TValue> UseScriptable<TKey, TValue>(
 			ScriptableDictionary<TKey, TValue> dictionary)
@@ -53,8 +50,7 @@ namespace ReactiveUI.Soap
 		}
 
 		/// <summary>
-		/// Runs <paramref name="handler"/> whenever a Soap event is raised, for as long as this
-		/// component is mounted.
+		/// Invokes <paramref name="handler"/> whenever <paramref name="evt"/> is raised while this component is mounted.
 		/// </summary>
 		public static void UseScriptableEvent<TState>(ScriptableEventNoParam evt, TState state, Action<TState> handler)
 		{
@@ -64,7 +60,7 @@ namespace ReactiveUI.Soap
 		}
 
 		/// <summary>
-		/// Runs <paramref name="handler"/> with the raised value whenever a Soap event fires.
+		/// Invokes <paramref name="handler"/> with the raised value whenever <paramref name="evt"/> is raised while this component is mounted.
 		/// </summary>
 		public static void UseScriptableEvent<TState, T>(
 			ScriptableEvent<T> evt,

@@ -12,7 +12,7 @@ namespace ReactiveUI
 	/// the editor and a player load the result. In the editor the source reloads a sheet whenever it is
 	/// reimported, which is what makes editing one restyle a running game without a script recompile.
 	/// </remarks>
-	public interface IStyleSheetSource
+	internal interface IStyleSheetSource
 	{
 		/// <summary>
 		/// Raised when the sheets have changed and the runtime should re-apply them.
@@ -28,7 +28,7 @@ namespace ReactiveUI
 	// The editor catalog claims the source from [InitializeOnLoadMethod], which does not re-run on
 	// entering Play mode.
 	[NoAutoStaticsCleanup]
-	public static partial class StyleSheets
+	internal static partial class StyleSheets
 	{
 		public static bool HasSource => s_source is not null;
 

@@ -7,8 +7,12 @@ namespace ReactiveUI
 	/// </summary>
 	public readonly struct Fragment : IElement
 	{
+		/// <inheritdoc/>
 		public Element Handle { get; }
 
+		/// <summary>
+		/// Creates an empty fragment.
+		/// </summary>
 		public Fragment()
 		{
 			Handle = Element.Group(TypeIds.Fragment);

@@ -7,7 +7,7 @@ namespace ReactiveUI
 	/// <summary>
 	/// Easing curves a transition or a keyframe segment may name.
 	/// </summary>
-	public enum Easing
+	internal enum Easing
 	{
 		Linear,
 		InQuad,
@@ -26,7 +26,7 @@ namespace ReactiveUI
 	/// channel for it, and a stylesheet naming anything else snapped with no diagnostic. This enum
 	/// is that fact written down. It doubles as the keyframe track key and as the bit position in
 	/// <see cref="AnimationPlayer"/>'s ownership mask, which is why it stays small enough to fit
-	/// one: eleven ids in a <c>ushort</c>.
+	/// one: twelve ids in a <c>ushort</c>.
 	/// </remarks>
 	internal enum MotionChannelId : byte
 	{
@@ -34,7 +34,8 @@ namespace ReactiveUI
 		Opacity,
 		TranslateX,
 		TranslateY,
-		Scale,
+		ScaleX,
+		ScaleY,
 		Rotation,
 
 		// Carried only by a host that paints.
@@ -78,7 +79,8 @@ namespace ReactiveUI
 				case PropId.Opacity: channel = MotionChannelId.Opacity; return true;
 				case PropId.TranslateX: channel = MotionChannelId.TranslateX; return true;
 				case PropId.TranslateY: channel = MotionChannelId.TranslateY; return true;
-				case PropId.Scale: channel = MotionChannelId.Scale; return true;
+				case PropId.ScaleX: channel = MotionChannelId.ScaleX; return true;
+				case PropId.ScaleY: channel = MotionChannelId.ScaleY; return true;
 				case PropId.Rotation: channel = MotionChannelId.Rotation; return true;
 				case PropId.BackgroundColor: channel = MotionChannelId.Fill; return true;
 				case PropId.BorderTopColor: channel = MotionChannelId.BorderTop; return true;
@@ -96,7 +98,8 @@ namespace ReactiveUI
 			MotionChannelId.Opacity => PropId.Opacity,
 			MotionChannelId.TranslateX => PropId.TranslateX,
 			MotionChannelId.TranslateY => PropId.TranslateY,
-			MotionChannelId.Scale => PropId.Scale,
+			MotionChannelId.ScaleX => PropId.ScaleX,
+			MotionChannelId.ScaleY => PropId.ScaleY,
 			MotionChannelId.Rotation => PropId.Rotation,
 			MotionChannelId.Fill => PropId.BackgroundColor,
 			MotionChannelId.BorderTop => PropId.BorderTopColor,
@@ -118,7 +121,8 @@ namespace ReactiveUI
 			MotionChannelId.Opacity => style.Number(PropId.Opacity, 1f),
 			MotionChannelId.TranslateX => ctx.Resolve(style.Length(PropId.TranslateX)),
 			MotionChannelId.TranslateY => ctx.Resolve(style.Length(PropId.TranslateY)),
-			MotionChannelId.Scale => style.Number(PropId.Scale, 1f),
+			MotionChannelId.ScaleX => style.Number(PropId.ScaleX, 1f),
+			MotionChannelId.ScaleY => style.Number(PropId.ScaleY, 1f),
 			_ => style.Number(PropId.Rotation, 0f),
 		};
 

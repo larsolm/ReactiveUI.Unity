@@ -7,8 +7,12 @@ namespace ReactiveUI
 	/// </summary>
 	public readonly struct Portal : IElement
 	{
+		/// <inheritdoc/>
 		public Element Handle { get; }
 
+		/// <summary>
+		/// Creates an empty portal.
+		/// </summary>
 		public Portal()
 		{
 			Handle = Element.Group(TypeIds.Portal);

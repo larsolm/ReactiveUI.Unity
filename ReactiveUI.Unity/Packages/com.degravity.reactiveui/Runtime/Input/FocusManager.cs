@@ -4,20 +4,11 @@ using UnityEngine;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// Tracks which node holds focus, and moves focus between the nodes that can take it.
+	/// Tracks and moves focus between focusable elements.
 	/// </summary>
 	/// <remarks>
-	/// <para>
-	/// Focus is a state bit like any other, so a stylesheet describes what focus looks like and
-	/// nothing here needs to know. <c>:focus</c> follows focus always; <c>:focus-visible</c> is
-	/// additionally gated on the player using a gamepad or keyboard, which is the distinction that
-	/// stops a mouse click from drawing a navigation ring.
-	/// </para>
-	/// <para>
-	/// Scopes exist for modals. A dialog pushes a scope, and navigation stops escaping to the
-	/// screen behind it — without that, a stick flick moves the highlight somewhere the player
-	/// cannot see.
-	/// </para>
+	/// The focused element matches <c>:focus</c>, and also <c>:focus-visible</c> while the
+	/// <see cref="InputModality"/> is <see cref="InputModality.Navigation"/>.
 	/// </remarks>
 	public sealed class FocusManager
 	{
@@ -31,7 +22,7 @@ namespace ReactiveUI
 		private readonly List<HostInstance> _focusable = new();
 		private readonly List<HostInstance> _scopes = new();
 
-		public FocusManager()
+		internal FocusManager()
 		{
 			InputModalityTracker.Changed += OnModalityChanged;
 		}
@@ -52,7 +43,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Moves focus to the node behind a handle.
+		/// Focuses the element <paramref name="target"/> is attached to, or clears focus when it is null.
 		/// </summary>
 		public void Focus(ElementRef? target)
 		{
@@ -60,7 +51,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Clears focus entirely.
+		/// Clears focus.
 		/// </summary>
 		public void Blur()
 		{
@@ -68,7 +59,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Whether the node behind a handle currently holds focus.
+		/// Whether the element <paramref name="target"/> is attached to has focus.
 		/// </summary>
 		public bool IsFocused(ElementRef? target)
 		{
@@ -76,7 +67,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Activates whatever holds focus, as pressing it would.
+		/// Clicks the focused element.
 		/// </summary>
 		public void Submit()
 		{
@@ -87,14 +78,20 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Confines navigation to a subtree, for a modal or a menu.
+		/// Confines focus navigation to the element <paramref name="scope"/> is attached to and its descendants.
 		/// </summary>
+		/// <remarks>
+		/// Clears focus if it is outside the new scope.
+		/// </remarks>
 		public void PushScope(ElementRef scope)
 		{
 			if (scope._host is not null)
 				PushScope(scope._host);
 		}
 
+		/// <summary>
+		/// Removes a scope added by <see cref="PushScope(ElementRef)"/>.
+		/// </summary>
 		public void PopScope(ElementRef scope)
 		{
 			if (scope._host is not null)
@@ -121,13 +118,11 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Moves focus in a direction, choosing the nearest candidate that actually lies that way.
+		/// Moves focus to the nearest focusable element in <paramref name="direction"/>.
 		/// </summary>
+		/// <returns>Whether focus moved or the move was consumed.</returns>
 		/// <remarks>
-		/// Distance is weighted so that alignment with the direction of travel counts for more than
-		/// raw proximity. Picking purely by distance feels wrong in practice: a control slightly
-		/// nearer but well off-axis steals the focus from the one the player was clearly heading
-		/// towards.
+		/// When nothing is focused, focuses the first focusable element instead.
 		/// </remarks>
 		public bool Move(Vector2 direction)
 		{

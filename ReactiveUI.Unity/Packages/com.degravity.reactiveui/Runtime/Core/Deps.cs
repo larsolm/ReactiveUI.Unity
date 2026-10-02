@@ -3,18 +3,19 @@
 namespace ReactiveUI
 {
 	/// <summary>
-	/// Wraps a reference so it can be a hook dependency, compared by identity.
+	/// A hook dependency that compares a reference by identity.
 	/// </summary>
-	/// <remarks>
-	/// Deps must be <see cref="IEquatable{T}"/> so they compare without boxing. An asset or a definition
-	/// declares no equality of its own; this gives it identity equality and composes into a tuple like
-	/// any other dep: <c>(index, Deps.Of(relic))</c>.
-	/// </remarks>
 	public readonly struct Deps<T> : IEquatable<Deps<T>>
 		where T : class
 	{
+		/// <summary>
+		/// The wrapped reference.
+		/// </summary>
 		public readonly T? Value;
 
+		/// <summary>
+		/// Wraps <paramref name="value"/>.
+		/// </summary>
 		public Deps(T? value)
 		{
 			Value = value;
@@ -27,9 +28,14 @@ namespace ReactiveUI
 		public override int GetHashCode() => Value is null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(Value);
 	}
 
+	/// <summary>
+	/// Factory methods for <see cref="Deps{T}"/>.
+	/// </summary>
 	public static class Deps
 	{
-		/// <inheritdoc cref="Deps{T}"/>
+		/// <summary>
+		/// Wraps <paramref name="value"/> as an identity-compared hook dependency.
+		/// </summary>
 		public static Deps<T> Of<T>(T? value)
 			where T : class
 		{
@@ -38,7 +44,7 @@ namespace ReactiveUI
 	}
 
 	/// <summary>
-	/// Thrown when a component reads a context that nothing above it provides.
+	/// Thrown when a component reads a context that no ancestor provides.
 	/// </summary>
 	public sealed class MissingContextException : Exception
 	{

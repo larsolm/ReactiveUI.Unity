@@ -5,18 +5,16 @@ using UnityEngine.Rendering.Universal;
 namespace ReactiveUI.Universal
 {
 	/// <summary>
-	/// Draws every <see cref="GammaCanvas"/> on a camera in gamma space and composites it over the
-	/// frame the way a browser would.
+	/// A URP renderer feature that draws each <see cref="GammaCanvas"/> in gamma space and composites it over the frame.
 	/// </summary>
 	/// <remarks>
-	/// The renderer's own layer mask must leave out <see cref="_layers"/>, or the canvases are drawn a
-	/// second time, linearly, by the renderer itself. The composite runs after post-processing, so the
-	/// UI is neither bloomed nor blurred, and only on cameras a gamma canvas is attached to.
+	/// Exclude the canvas layers from the renderer's own layer mask, or the canvases are drawn twice.
+	/// The composite runs after post-processing.
 	/// </remarks>
 	[DisallowMultipleRendererFeature("ReactiveUI Gamma")]
 	public sealed class ReactiveUIGammaFeature : ScriptableRendererFeature
 	{
-		public const string ShaderName = "Hidden/ReactiveUI/GammaComposite";
+		internal const string ShaderName = "Hidden/ReactiveUI/GammaComposite";
 
 		[SerializeField]
 		private Shader? _shader = null;
@@ -28,6 +26,7 @@ namespace ReactiveUI.Universal
 		private Material? _material;
 		private GammaCompositePass? _pass;
 
+		/// <inheritdoc/>
 		public override void Create()
 		{
 			CoreUtils.Destroy(_material);
@@ -47,6 +46,7 @@ namespace ReactiveUI.Universal
 			};
 		}
 
+		/// <inheritdoc/>
 		public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
 		{
 			if (_pass == null || !GammaCanvas.AnyFor(renderingData.cameraData.camera))
@@ -56,6 +56,7 @@ namespace ReactiveUI.Universal
 			renderer.EnqueuePass(_pass);
 		}
 
+		/// <inheritdoc/>
 		protected override void Dispose(bool disposing)
 		{
 			CoreUtils.Destroy(_material);

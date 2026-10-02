@@ -1,10 +1,13 @@
 namespace ReactiveUI
 {
 	/// <summary>
-	/// A mutable box that survives re-renders without causing one.
+	/// A mutable box that persists across renders; changing it does not re-render.
 	/// </summary>
 	public sealed class Ref<T>
 	{
+		/// <summary>
+		/// The current value.
+		/// </summary>
 		public T Value;
 
 		internal Ref(T value) => Value = value;
