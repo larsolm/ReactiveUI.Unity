@@ -8,11 +8,11 @@ namespace ReactiveUI
 	/// </summary>
 	public readonly struct Projection<TSource, TState>
 	{
-		private readonly IList<TSource>? _source;
+		private readonly IReadOnlyList<TSource> _source;
 		private readonly TState _state;
-		private readonly Func<TSource, TState, Element?>? _select;
+		private readonly Func<TSource, TState, Element?> _select;
 
-		internal Projection(IList<TSource>? source, TState state, Func<TSource, TState, Element?>? select)
+		internal Projection(IReadOnlyList<TSource> source, TState state, Func<TSource, TState, Element?> select)
 		{
 			_source = source;
 			_state = state;
@@ -21,7 +21,7 @@ namespace ReactiveUI
 
 		internal void AppendTo(ElementList target)
 		{
-			if (_source is null || _select is null)
+			if (_source.Count == 0)
 				return;
 
 			var count = _source.Count;
@@ -38,11 +38,11 @@ namespace ReactiveUI
 	/// </summary>
 	public readonly struct IndexedProjection<TSource, TState>
 	{
-		private readonly IList<TSource>? _source;
+		private readonly IReadOnlyList<TSource> _source;
 		private readonly TState _state;
-		private readonly Func<TSource, int, TState, Element?>? _select;
+		private readonly Func<TSource, int, TState, Element?> _select;
 
-		internal IndexedProjection(IList<TSource>? source, TState state, Func<TSource, int, TState, Element?>? select)
+		internal IndexedProjection(IReadOnlyList<TSource> source, TState state, Func<TSource, int, TState, Element?> select)
 		{
 			_source = source;
 			_state = state;
@@ -51,7 +51,7 @@ namespace ReactiveUI
 
 		internal void AppendTo(ElementList target)
 		{
-			if (_source is null || _select is null)
+			if (_source.Count == 0)
 				return;
 
 			var count = _source.Count;

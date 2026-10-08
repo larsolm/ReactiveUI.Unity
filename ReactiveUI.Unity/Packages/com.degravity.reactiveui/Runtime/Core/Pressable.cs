@@ -15,8 +15,7 @@ namespace ReactiveUI
 	/// <param name="OnHoverExit">Invoked when the pointer leaves the element.</param>
 	/// <param name="Disabled">Whether the element ignores input and cannot be focused.</param>
 	/// <param name="Unfocusable">Whether focus navigation skips the element.</param>
-	/// <param name="OnMove">
-	/// Invoked with the navigation direction while the element is focused; return true to consume it.
+	/// <param name="OnMove">Invoked with the navigation direction while the element is focused; return true to consume it.
 	/// </param>
 	public readonly record struct PressableProps(
 		Action? OnClick = null,

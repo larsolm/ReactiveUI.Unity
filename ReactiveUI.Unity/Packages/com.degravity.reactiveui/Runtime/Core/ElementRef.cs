@@ -24,12 +24,12 @@ namespace ReactiveUI
 		/// </summary>
 		public void SetTranslate(float x, float y)
 		{
-			if (_host is null)
-				return;
-
-			_host._motionX = x;
-			_host._motionY = y;
-			_host.RefreshTransform();
+			if (_host is not null)
+			{
+				_host._motionX = x;
+				_host._motionY = y;
+				_host.RefreshTransform();
+			}
 		}
 
 		/// <summary>
@@ -37,11 +37,11 @@ namespace ReactiveUI
 		/// </summary>
 		public void SetScale(float scale)
 		{
-			if (_host is null)
-				return;
-
-			_host._motionScale = scale;
-			_host.RefreshTransform();
+			if (_host is not null)
+			{
+				_host._motionScale = scale;
+				_host.RefreshTransform();
+			}
 		}
 
 		/// <summary>
@@ -49,11 +49,11 @@ namespace ReactiveUI
 		/// </summary>
 		public void SetRotation(float degrees)
 		{
-			if (_host is null)
-				return;
-
-			_host._motionRotation = degrees;
-			_host.RefreshTransform();
+			if (_host is not null)
+			{
+				_host._motionRotation = degrees;
+				_host.RefreshTransform();
+			}
 		}
 
 		/// <summary>
@@ -61,14 +61,14 @@ namespace ReactiveUI
 		/// </summary>
 		public void ClearMotion()
 		{
-			if (_host is null)
-				return;
-
-			_host._motionX = 0f;
-			_host._motionY = 0f;
-			_host._motionScale = 1f;
-			_host._motionRotation = 0f;
-			_host.RefreshTransform();
+			if (_host is not null)
+			{
+				_host._motionX = 0f;
+				_host._motionY = 0f;
+				_host._motionScale = 1f;
+				_host._motionRotation = 0f;
+				_host.RefreshTransform();
+			}
 		}
 
 		internal void Bind(HostInstance host)

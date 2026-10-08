@@ -27,6 +27,11 @@ namespace ReactiveUI
 	public readonly struct StyleLength : IEquatable<StyleLength>
 	{
 		/// <summary>
+		/// The <c>auto</c> length.
+		/// </summary>
+		public static StyleLength Auto => new(0f, LengthUnit.Auto);
+
+		/// <summary>
 		/// The numeric value.
 		/// </summary>
 		public readonly float Value;
@@ -37,6 +42,21 @@ namespace ReactiveUI
 		public readonly LengthUnit Unit;
 
 		/// <summary>
+		/// Creates a length in points (pixels).
+		/// </summary>
+		public static StyleLength Points(float value) => new(value, LengthUnit.Points);
+
+		/// <summary>
+		/// Creates a length in percent relative to the containing element's size.
+		/// </summary>
+		public static StyleLength Percent(float value) => new(value, LengthUnit.Percent);
+
+		/// <summary>
+		/// Creates a length in rem units.
+		/// </summary>
+		public static StyleLength Rem(float value) => new(value, LengthUnit.Rem);
+
+		/// <summary>
 		/// Creates a length of <paramref name="value"/> in <paramref name="unit"/>.
 		/// </summary>
 		public StyleLength(float value, LengthUnit unit = LengthUnit.Points)
@@ -44,21 +64,6 @@ namespace ReactiveUI
 			Value = value;
 			Unit = unit;
 		}
-
-		/// <summary>
-		/// The <c>auto</c> length.
-		/// </summary>
-		public static StyleLength Auto => new(0f, LengthUnit.Auto);
-
-		/// <summary>
-		/// Converts a pixel value to a length.
-		/// </summary>
-		public static implicit operator StyleLength(float points) => new(points);
-
-		/// <summary>
-		/// Converts a pixel value to a length.
-		/// </summary>
-		public static implicit operator StyleLength(int points) => new(points);
 
 		public bool Equals(StyleLength other)
 		{
@@ -87,6 +92,16 @@ namespace ReactiveUI
 			LengthUnit.Auto => "",
 			_ => "px",
 		};
+
+		/// <summary>
+		/// Converts a pixel value to a length.
+		/// </summary>
+		public static implicit operator StyleLength(float points) => new(points);
+
+		/// <summary>
+		/// Converts a pixel value to a length.
+		/// </summary>
+		public static implicit operator StyleLength(int points) => new(points);
 	}
 
 	/// <summary>

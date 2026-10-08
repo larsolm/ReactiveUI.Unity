@@ -26,8 +26,33 @@ namespace ReactiveUI
 			}
 		}
 
+		/// <summary>One <c>@font-face</c>, readable without loading the sheet.</summary>
+		[Serializable]
+		internal struct Font
+		{
+			public string Family;
+			public string ResourcePath;
+			public int Weight;
+
+			public Font(string family, string resourcePath, int weight)
+			{
+				Family = family;
+				ResourcePath = resourcePath;
+				Weight = weight;
+			}
+		}
+
 		[SerializeField, HideInInspector]
 		private byte[] _data = Array.Empty<byte>();
+
+		[SerializeField]
+		private bool _eager = true;
+
+		[SerializeField]
+		private string[] _layerNames = Array.Empty<string>();
+
+		[SerializeField]
+		private Font[] _fonts = Array.Empty<Font>();
 
 		[SerializeField]
 		private string _sourcePath = string.Empty;
@@ -61,6 +86,18 @@ namespace ReactiveUI
 
 		internal IReadOnlyList<Import> Imports => _imports;
 
+		/// <summary>
+		/// Whether the sheet is loaded up front. A sheet that is not is loaded once a node carries one
+		/// of its <see cref="Classes"/>.
+		/// </summary>
+		internal bool Eager => _eager;
+
+		/// <summary>The sheet's <c>@layer</c> names, in the order it first mentions them.</summary>
+		internal IReadOnlyList<string> LayerNames => _layerNames;
+
+		/// <summary>The sheet's <c>@font-face</c> rules.</summary>
+		internal IReadOnlyList<Font> Fonts => _fonts;
+
 		/// <summary>Whether the file compiled; one that did not loads as an empty sheet.</summary>
 		internal bool HasData => _data.Length > 0;
 
@@ -70,7 +107,10 @@ namespace ReactiveUI
 			string[] classes,
 			string[] unscopedClasses,
 			Import[] imports,
-			string[] diagnostics)
+			string[] diagnostics,
+			bool eager,
+			string[] layerNames,
+			Font[] fonts)
 		{
 			_sourcePath = sourcePath;
 			_data = data;
@@ -78,6 +118,9 @@ namespace ReactiveUI
 			_unscopedClasses = unscopedClasses;
 			_imports = imports;
 			_diagnostics = diagnostics;
+			_eager = eager;
+			_layerNames = layerNames;
+			_fonts = fonts;
 		}
 
 		/// <summary>Reads the compiled sheet back.</summary>

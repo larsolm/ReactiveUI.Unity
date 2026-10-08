@@ -71,9 +71,6 @@ namespace ReactiveUI
 			AncestorStateMask = ancestorStateMask;
 		}
 
-		public SelectorRecord WithSpecificity(int specificity) =>
-			new(CompoundStart, CompoundCount, specificity, SelfStateMask, AncestorStateMask);
-
 		/// <summary>
 		/// CSS specificity, minus the id column — there are no id selectors, so a rule is only ever
 		/// as specific as its classes and pseudo-classes, then its type names.

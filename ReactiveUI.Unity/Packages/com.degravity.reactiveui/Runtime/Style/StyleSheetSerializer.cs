@@ -33,7 +33,7 @@ namespace ReactiveUI
 	internal static class StyleSheetSerializer
 	{
 		/// <summary>Bumped whenever the layout below changes.</summary>
-		internal const int FormatVersion = 2;
+		internal const int FormatVersion = 3;
 
 		private const uint Magic = 0x53535552; // "RUSS"
 
@@ -290,6 +290,7 @@ namespace ReactiveUI
 					WriteLength(writer, checker.CellSize);
 					WriteLength(writer, checker.LineWidth);
 					WriteInk(writer, checker.Ink, names);
+					writer.Write(checker.RowsOnly);
 
 					break;
 
@@ -640,7 +641,7 @@ namespace ReactiveUI
 				}
 
 				case ReferenceKind.Checker:
-					return new Checker(ReadLength(reader), ReadLength(reader), ReadInk(reader, ids));
+					return new Checker(ReadLength(reader), ReadLength(reader), ReadInk(reader, ids), reader.ReadBoolean());
 
 				case ReferenceKind.Gradient:
 				{

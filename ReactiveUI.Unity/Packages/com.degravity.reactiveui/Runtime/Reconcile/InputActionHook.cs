@@ -26,7 +26,7 @@ namespace ReactiveUI
 			_listener = () => _callback?.Invoke(_state);
 		}
 
-		public void Bind(InputAction? action, TState state, Action<TState> callback)
+		public void Bind(InputAction action, TState state, Action<TState> callback)
 		{
 			_callback = callback;
 			_state = state;
@@ -65,7 +65,7 @@ namespace ReactiveUI
 			_listener = () => _callback?.Invoke();
 		}
 
-		public void Bind(InputAction? action, Action callback)
+		public void Bind(InputAction action, Action callback)
 		{
 			_callback = callback;
 

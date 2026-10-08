@@ -58,7 +58,30 @@ namespace ReactiveUI
 		}
 
 		internal bool UsesSiblingCombinators { get; private set; }
-		private readonly List<StyleSheet> _sheets = new();
+
+		/// <summary>The source's sheets by slot; null for a slot not yet active in this engine.</summary>
+		private readonly List<StyleSheet?> _sheets = new();
+
+		private IStyleSheetSource? _source;
+
+		/// <summary>Classes this engine has seen on a node, so each triggers activation once.</summary>
+		private readonly HashSet<int> _seenClasses = new();
+
+		/// <summary>Packed rules bucketed by a class their key compound requires.</summary>
+		private readonly Dictionary<int, List<int>> _rulesByClass = new();
+
+		/// <summary>Packed rules whose key compound names a type but no class, by type.</summary>
+		private readonly Dictionary<int, List<int>> _rulesByType = new();
+
+		/// <summary>Packed rules whose key compound names neither a class nor a type.</summary>
+		private readonly List<int> _rulesUniversal = new();
+
+		/// <summary>Packed (sheet, compound) interactive compounds, bucketed like the rules.</summary>
+		private readonly Dictionary<int, List<int>> _pointerByClass = new();
+
+		private readonly Dictionary<int, List<int>> _pointerByType = new();
+		private readonly List<int> _pointerUniversal = new();
+
 		private readonly List<int> _candidates = new();
 
 		/// <summary>
@@ -90,7 +113,7 @@ namespace ReactiveUI
 		/// </summary>
 		/// <remarks>
 		/// Per engine rather than per sheet: sheets are shared process-wide through
-		/// <see cref="StyleSheets.Current"/>, and two runtimes rendering into differently sized containers
+		/// <see cref="StyleSheets.Source"/>, and two runtimes rendering into differently sized containers
 		/// ask the same query different questions. The same reason the rest of this class is an instance.
 		/// </remarks>
 		private readonly List<bool[]> _mediaActive = new();
@@ -112,47 +135,158 @@ namespace ReactiveUI
 			_varSets.Add(new Dictionary<int, StyleValue>());
 		}
 
-		internal void SetSheets(IEnumerable<StyleSheet> sheets)
+		/// <summary>
+		/// Takes the source's sheets, activating its eager ones now and the rest when a node first
+		/// carries one of their classes.
+		/// </summary>
+		internal void SetSheets(IStyleSheetSource? source)
 		{
+			_source = source;
+
 			_sheets.Clear();
-			_sheets.AddRange(sheets);
-
-			_clips.Clear();
-
-			foreach (var sheet in _sheets)
-			{
-				// A name declared twice resolves to the last one, in sheet order, as CSS says.
-				for (var i = 0; i < sheet.Keyframes.Length; i++)
-					_clips[sheet.Keyframes[i].NameId] = sheet.Keyframes[i];
-			}
-
-			UsesSiblingCombinators = false;
-			foreach (var sheet in _sheets)
-			{
-				for (var i = 0; i < sheet.Compounds.Length && !UsesSiblingCombinators; i++)
-				{
-					UsesSiblingCombinators = sheet.Compounds[i].ToNext is Combinator.NextSibling or Combinator.SubsequentSibling;
-				}
-			}
-
-			// Before the invalidation rather than after it, so the very first match already knows which
-			// conditional rules are live. The return value is moot here — the caches are being dropped
-			// regardless.
 			_mediaActive.Clear();
-			foreach (var sheet in _sheets)
+			_seenClasses.Clear();
+			_clips.Clear();
+			_rulesByClass.Clear();
+			_rulesByType.Clear();
+			_rulesUniversal.Clear();
+			_pointerByClass.Clear();
+			_pointerByType.Clear();
+			_pointerUniversal.Clear();
+			UsesSiblingCombinators = false;
+
+			var count = source?.Count ?? 0;
+
+			for (var i = 0; i < count; i++)
 			{
-				var flags = new bool[sheet.MediaQueries.Length];
-
-				// Index 0 is the unconditional query.
-				if (flags.Length > 0)
-					flags[0] = true;
-
-				_mediaActive.Add(flags);
+				_sheets.Add(null);
+				_mediaActive.Add(Array.Empty<bool>());
 			}
 
-			RefreshMediaFlags();
+			// In slot order, so a keyframes name declared twice resolves to the later sheet.
+			for (var i = 0; i < count; i++)
+			{
+				if (source!.IsEager(i))
+					Activate(i);
+			}
 
 			Invalidate();
+		}
+
+		/// <summary>Activates every lazy sheet naming a class on the target that this engine has not seen.</summary>
+		private void ActivateFor(in ClassSet classes)
+		{
+			if (_source is null)
+				return;
+
+			for (var i = 0; i < classes.Count; i++)
+			{
+				var id = classes[i];
+
+				if (!_seenClasses.Add(id) || _source.LazySlotsFor(id) is not { } slots)
+					continue;
+
+				for (var s = 0; s < slots.Count; s++)
+				{
+					if (Activate(slots[s]))
+						StylePreloads.Note(PreloadKind.Sheet, _source.PathOf(slots[s]));
+				}
+			}
+		}
+
+		/// <summary>Activates a deferred slot now, rather than when a node first carries one of its classes.</summary>
+		internal void Preload(int slot)
+		{
+			if (_source is not null && slot >= 0 && slot < _sheets.Count)
+				Activate(slot);
+		}
+
+		/// <summary>Loads one slot's sheet into this engine and indexes it.</summary>
+		/// <remarks>
+		/// Slots never move, so rule sets interned before an activation stay valid after it.
+		/// </remarks>
+		/// <returns>Whether the slot was activated by this call.</returns>
+		private bool Activate(int slot)
+		{
+			if (_sheets[slot] is not null || _source!.Get(slot) is not { } sheet)
+				return false;
+
+			using var marker = UiMarkers.ActivateSheet.Auto();
+
+			_sheets[slot] = sheet;
+
+			for (var i = 0; i < sheet.Keyframes.Length; i++)
+				_clips[sheet.Keyframes[i].NameId] = sheet.Keyframes[i];
+
+			for (var i = 0; i < sheet.Compounds.Length && !UsesSiblingCombinators; i++)
+				UsesSiblingCombinators = sheet.Compounds[i].ToNext is Combinator.NextSibling or Combinator.SubsequentSibling;
+
+			var flags = new bool[sheet.MediaQueries.Length];
+
+			// Index 0 is the unconditional query.
+			if (flags.Length > 0)
+				flags[0] = true;
+
+			_mediaActive[slot] = flags;
+			RefreshMediaFlags(slot);
+
+			for (var rule = 0; rule < sheet.Rules.Length; rule++)
+			{
+				var selector = sheet.Selectors[sheet.Rules[rule].SelectorIndex];
+				var key = sheet.Compounds[selector.CompoundStart + selector.CompoundCount - 1];
+
+				AddToIndex(sheet, key, (slot << 20) | rule, _rulesByClass, _rulesByType, _rulesUniversal);
+			}
+
+			foreach (var compound in sheet.InteractiveCompounds)
+				AddToIndex(sheet, sheet.Compounds[compound], (slot << 20) | compound, _pointerByClass, _pointerByType, _pointerUniversal);
+
+			return true;
+		}
+
+		/// <summary>
+		/// Files an entry under one class its compound requires, else its type, else as universal.
+		/// </summary>
+		private static void AddToIndex(
+			StyleSheet sheet,
+			in CompoundSelector compound,
+			int packed,
+			Dictionary<int, List<int>> byClass,
+			Dictionary<int, List<int>> byType,
+			List<int> universal)
+		{
+			int? type = null;
+
+			for (var i = 0; i < compound.Count; i++)
+			{
+				var simple = sheet.Simples[compound.Start + i];
+
+				if (simple.Kind == SelectorKind.Class)
+				{
+					Bucket(byClass, simple.Value).Add(packed);
+
+					return;
+				}
+
+				if (simple.Kind == SelectorKind.Type)
+					type ??= simple.Value;
+			}
+
+			if (type is { } typeId)
+				Bucket(byType, typeId).Add(packed);
+			else
+				universal.Add(packed);
+		}
+
+		private static List<int> Bucket(Dictionary<int, List<int>> index, int key)
+		{
+			if (!index.TryGetValue(key, out var bucket))
+			{
+				bucket = new List<int>();
+				index[key] = bucket;
+			}
+
+			return bucket;
 		}
 
 		private void Invalidate()
@@ -210,21 +344,29 @@ namespace ReactiveUI
 			var changed = false;
 
 			for (var i = 0; i < _sheets.Count; i++)
+				changed |= RefreshMediaFlags(i);
+
+			return changed;
+		}
+
+		private bool RefreshMediaFlags(int slot)
+		{
+			if (_sheets[slot] is not { } sheet)
+				return false;
+
+			var changed = false;
+			var flags = _mediaActive[slot];
+
+			// Index 0 is the unconditional query and is always on.
+			for (var q = 1; q < flags.Length; q++)
 			{
-				var sheet = _sheets[i];
-				var flags = _mediaActive[i];
+				var active = MediaQueryEvaluator.Evaluate(sheet, q, _media);
 
-				// Index 0 is the unconditional query and is always on.
-				for (var q = 1; q < flags.Length; q++)
-				{
-					var active = MediaQueryEvaluator.Evaluate(sheet, q, _media);
+				if (flags[q] == active)
+					continue;
 
-					if (flags[q] == active)
-						continue;
-
-					flags[q] = active;
-					changed = true;
-				}
+				flags[q] = active;
+				changed = true;
 			}
 
 			return changed;
@@ -237,41 +379,28 @@ namespace ReactiveUI
 
 		public int Match(IMatchTarget target)
 		{
+			using var marker = UiMarkers.Match.Auto();
+
+			var classes = target.MatchClasses;
+
+			ActivateFor(classes);
+
 			_candidates.Clear();
 			_proximity.Clear();
 
-			for (var sheetIndex = 0; sheetIndex < _sheets.Count; sheetIndex++)
+			// Each rule sits in exactly one bucket, so no rule is tried twice.
+			MatchBucket(_rulesUniversal, target);
+
+			for (var i = 0; i < classes.Count; i++)
 			{
-				var sheet = _sheets[sheetIndex];
-				var mediaActive = _mediaActive[sheetIndex];
+				if (_rulesByClass.TryGetValue(classes[i], out var bucket))
+					MatchBucket(bucket, target);
+			}
 
-				for (var ruleIndex = 0; ruleIndex < sheet.Rules.Length; ruleIndex++)
-				{
-					var rule = sheet.Rules[ruleIndex];
-
-					// A rule under an `@media` that does not currently hold is not a candidate at all.
-					// Filtered here rather than at resolution so the condition never reaches the per-frame
-					// path: the rule set a node interns to already has the answer baked in, and the
-					// environment moving is what re-matches the tree.
-					if (rule.MediaQueryIndex != 0 && !mediaActive[rule.MediaQueryIndex])
-						continue;
-
-					var selector = sheet.Selectors[rule.SelectorIndex];
-
-					// Pseudo-classes are skipped here: matching answers "could this rule ever apply",
-					// which must not change when a pointer moves. Whether it applies *right now* is
-					// decided per frame in EvaluateConditions.
-					if (!MatchesRule(sheet, rule, selector, target, checkState: false, out var hops))
-						continue;
-
-					// Rules are packed as (sheet, rule) so the ordered set survives interning.
-					var packed = (sheetIndex << 20) | ruleIndex;
-
-					_candidates.Add(packed);
-
-					if (rule.ScopeIndex != 0)
-						_proximity[packed] = hops;
-				}
+			foreach (var pair in _rulesByType)
+			{
+				if (target.MatchesType(pair.Key))
+					MatchBucket(pair.Value, target);
 			}
 
 			if (_candidates.Count == 0)
@@ -280,6 +409,37 @@ namespace ReactiveUI
 			SortByCascadeOrder(_candidates);
 
 			return InternRuleSet(_candidates);
+		}
+
+		private void MatchBucket(List<int> bucket, IMatchTarget target)
+		{
+			for (var i = 0; i < bucket.Count; i++)
+			{
+				// Rules are packed as (sheet, rule) so the ordered set survives interning.
+				var packed = bucket[i];
+				var sheet = _sheets[packed >> 20]!;
+				var rule = sheet.Rules[packed & 0xFFFFF];
+
+				// A rule under an `@media` that does not currently hold is not a candidate at all.
+				// Filtered here rather than at resolution so the condition never reaches the per-frame
+				// path: the rule set a node interns to already has the answer baked in, and the
+				// environment moving is what re-matches the tree.
+				if (rule.MediaQueryIndex != 0 && !_mediaActive[packed >> 20][rule.MediaQueryIndex])
+					continue;
+
+				var selector = sheet.Selectors[rule.SelectorIndex];
+
+				// Pseudo-classes are skipped here: matching answers "could this rule ever apply",
+				// which must not change when a pointer moves. Whether it applies *right now* is
+				// decided per frame in EvaluateConditions.
+				if (!MatchesRule(sheet, rule, selector, target, checkState: false, out var hops))
+					continue;
+
+				_candidates.Add(packed);
+
+				if (rule.ScopeIndex != 0)
+					_proximity[packed] = hops;
+			}
 		}
 
 		private void SortByCascadeOrder(List<int> candidates)
@@ -297,8 +457,8 @@ namespace ReactiveUI
 		/// </remarks>
 		private int CompareCascadeOrder(int a, int b)
 		{
-			var leftSheet = _sheets[a >> 20];
-			var rightSheet = _sheets[b >> 20];
+			var leftSheet = _sheets[a >> 20]!;
+			var rightSheet = _sheets[b >> 20]!;
 			var leftRule = leftSheet.Rules[a & 0xFFFFF];
 			var rightRule = rightSheet.Rules[b & 0xFFFFF];
 
@@ -333,7 +493,7 @@ namespace ReactiveUI
 
 		private SelectorRecord SelectorOf(int packed)
 		{
-			var sheet = _sheets[packed >> 20];
+			var sheet = _sheets[packed >> 20]!;
 			return sheet.Selectors[sheet.Rules[packed & 0xFFFFF].SelectorIndex];
 		}
 
@@ -576,7 +736,7 @@ namespace ReactiveUI
 			for (var i = 0; i < limit; i++)
 			{
 				var packed = rules[i];
-				var sheet = _sheets[packed >> 20];
+				var sheet = _sheets[packed >> 20]!;
 				var rule = sheet.Rules[packed & 0xFFFFF];
 				var selector = sheet.Selectors[rule.SelectorIndex];
 
@@ -634,16 +794,37 @@ namespace ReactiveUI
 		/// </remarks>
 		public bool NeedsPointer(IMatchTarget target)
 		{
-			for (var sheetIndex = 0; sheetIndex < _sheets.Count; sheetIndex++)
+			var classes = target.MatchClasses;
+
+			ActivateFor(classes);
+
+			if (AnyCompound(_pointerUniversal, target))
+				return true;
+
+			for (var i = 0; i < classes.Count; i++)
 			{
-				var sheet = _sheets[sheetIndex];
+				if (_pointerByClass.TryGetValue(classes[i], out var bucket) && AnyCompound(bucket, target))
+					return true;
+			}
 
-				for (var i = 0; i < sheet.InteractiveCompounds.Count; i++)
-				{
-					var compound = sheet.Compounds[sheet.InteractiveCompounds[i]];
+			foreach (var pair in _pointerByType)
+			{
+				if (target.MatchesType(pair.Key) && AnyCompound(pair.Value, target))
+					return true;
+			}
 
-					if (MatchesCompound(sheet, compound, target, checkState: false, scopeRoot: null)) return true;
-				}
+			return false;
+		}
+
+		private bool AnyCompound(List<int> bucket, IMatchTarget target)
+		{
+			for (var i = 0; i < bucket.Count; i++)
+			{
+				var sheet = _sheets[bucket[i] >> 20]!;
+				var compound = sheet.Compounds[bucket[i] & 0xFFFFF];
+
+				if (MatchesCompound(sheet, compound, target, checkState: false, scopeRoot: null))
+					return true;
 			}
 
 			return false;
@@ -659,7 +840,11 @@ namespace ReactiveUI
 			if (_computed.TryGetValue(key, out var cached))
 				return cached;
 
-			var computed = Build(ruleSetId, conditionMask, inheritedId, varSetId);
+			ComputedStyle computed;
+
+			using (UiMarkers.ComputeStyle.Auto())
+				computed = Build(ruleSetId, conditionMask, inheritedId, varSetId);
+
 			_computed[key] = computed;
 
 			return computed;
@@ -687,7 +872,7 @@ namespace ReactiveUI
 					continue;
 
 				var packed = rules[i];
-				var sheet = _sheets[packed >> 20];
+				var sheet = _sheets[packed >> 20]!;
 				var rule = sheet.Rules[packed & 0xFFFFF];
 
 				for (var d = 0; d < rule.DeclarationCount; d++)
@@ -843,7 +1028,7 @@ namespace ReactiveUI
 					continue;
 
 				var packed = rules[i];
-				var sheet = _sheets[packed >> 20];
+				var sheet = _sheets[packed >> 20]!;
 				var rule = sheet.Rules[packed & 0xFFFFF];
 
 				for (var d = 0; d < rule.DeclarationCount; d++)

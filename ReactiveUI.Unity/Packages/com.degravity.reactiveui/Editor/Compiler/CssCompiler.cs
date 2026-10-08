@@ -17,7 +17,14 @@ namespace ReactiveUI.Editor
 			public string[] Classes = Array.Empty<string>();
 			public string[] UnscopedClasses = Array.Empty<string>();
 			public CompiledStyleSheet.Import[] Imports = Array.Empty<CompiledStyleSheet.Import>();
+			public bool Eager = true;
+			public string[] LayerNames = Array.Empty<string>();
+			public CompiledStyleSheet.Font[] Fonts = Array.Empty<CompiledStyleSheet.Font>();
 			public readonly List<string> Diagnostics = new();
+
+			/// <summary>Writes the result into an imported asset.</summary>
+			public void WriteTo(CompiledStyleSheet asset, string path) =>
+				asset.Set(path, Data, Classes, UnscopedClasses, Imports, Diagnostics.ToArray(), Eager, LayerNames, Fonts);
 		}
 
 		internal static Result Compile(string css, string path)
@@ -34,6 +41,9 @@ namespace ReactiveUI.Editor
 			result.Imports = CssBuilder.ReadImports(parsed, path, result.Diagnostics);
 			result.Classes = ClassNames(sheet);
 			result.UnscopedClasses = UnscopedClasses(sheet);
+			result.Eager = IsEager(sheet);
+			result.LayerNames = sheet.LayerNames;
+			result.Fonts = Array.ConvertAll(sheet.FontFaces, face => new CompiledStyleSheet.Font(face.Family, face.ResourcePath, face.Weight));
 
 			try
 			{
@@ -45,6 +55,43 @@ namespace ReactiveUI.Editor
 			}
 
 			return result;
+		}
+
+		/// <summary>
+		/// Whether the sheet must be loaded up front: it declares <c>@keyframes</c>, or has a rule or a
+		/// hover/active compound that can match a node carrying none of its classes.
+		/// </summary>
+		private static bool IsEager(StyleSheet sheet)
+		{
+			if (sheet.Keyframes.Length > 0)
+				return true;
+
+			foreach (var rule in sheet.Rules)
+			{
+				var selector = sheet.Selectors[rule.SelectorIndex];
+
+				if (!NamesClass(sheet, sheet.Compounds[selector.CompoundStart + selector.CompoundCount - 1]))
+					return true;
+			}
+
+			foreach (var compound in sheet.InteractiveCompounds)
+			{
+				if (!NamesClass(sheet, sheet.Compounds[compound]))
+					return true;
+			}
+
+			return false;
+		}
+
+		private static bool NamesClass(StyleSheet sheet, CompoundSelector compound)
+		{
+			for (var i = 0; i < compound.Count; i++)
+			{
+				if (sheet.Simples[compound.Start + i].Kind == SelectorKind.Class)
+					return true;
+			}
+
+			return false;
 		}
 
 		/// <summary>

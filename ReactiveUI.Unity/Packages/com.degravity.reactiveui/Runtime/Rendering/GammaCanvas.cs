@@ -5,13 +5,6 @@ using UnityEngine.UI;
 
 namespace ReactiveUI
 {
-	/// <summary>
-	/// Renders this canvas with gamma-space blending, matching how browsers blend CSS colors, in a linear-color project.
-	/// </summary>
-	/// <remarks>
-	/// The canvas is switched to Screen Space - Camera on <see cref="Camera.main"/> and moved to the configured layer.
-	/// Requires <c>ReactiveUIGammaFeature</c> on the camera's URP renderer, with that layer excluded from the renderer's layer mask.
-	/// </remarks>
 	[AutoStaticsCleanup]
 	public sealed partial class GammaCanvas : MonoBehaviour
 	{
@@ -22,7 +15,6 @@ namespace ReactiveUI
 
 		internal static bool AnyFor(Camera camera)
 		{
-			// The scene view sees every camera canvas where it sits in the world, so it draws them all.
 			var sceneView = camera.cameraType == CameraType.SceneView;
 
 			foreach (var canvas in s_canvases)

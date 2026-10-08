@@ -19,7 +19,23 @@ namespace ReactiveUI
 		/// </summary>
 		event Action? Changed;
 
-		internal IReadOnlyList<StyleSheet> Sheets { get; }
+		/// <summary>The number of sheet slots, in cascade order.</summary>
+		int Count { get; }
+
+		/// <summary>The slot's sheet, loading it on first request; null if it failed to load.</summary>
+		StyleSheet? Get(int slot);
+
+		/// <summary>Whether the slot must be active before anything is matched.</summary>
+		bool IsEager(int slot);
+
+		/// <summary>The deferred slots whose sheets name the class, or null for none.</summary>
+		IReadOnlyList<int>? LazySlotsFor(int classId);
+
+		/// <summary>The asset path the slot's sheet was compiled from.</summary>
+		string PathOf(int slot);
+
+		/// <summary>The slot of the sheet compiled from <paramref name="path"/>, or -1 for none.</summary>
+		int SlotOf(string path);
 	}
 
 	/// <summary>
@@ -32,7 +48,7 @@ namespace ReactiveUI
 	{
 		public static bool HasSource => s_source is not null;
 
-		internal static IReadOnlyList<StyleSheet> Current => s_source?.Sheets ?? Array.Empty<StyleSheet>();
+		internal static IStyleSheetSource? Source => s_source;
 
 		public static event Action Changed = null!;
 		private static IStyleSheetSource? s_source = null;

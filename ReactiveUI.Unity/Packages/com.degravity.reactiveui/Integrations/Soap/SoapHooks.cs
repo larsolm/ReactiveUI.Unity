@@ -18,21 +18,27 @@ namespace ReactiveUI.Soap
 		public static T UseScriptable<T>(ScriptableVariable<T> variable)
 		{
 			var hook = Ui.Current().GetOrCreate(0, static (store, _) => new ScriptableHook<T>(store));
-
 			hook.Bind(variable);
-
 			return variable.Value;
+		}
+
+		/// <summary>
+		/// Returns settable state backed by a Soap variable and re-renders the component when it changes.
+		/// </summary>
+		public static ScriptableState<T> UseScriptableState<T>(ScriptableVariable<T> variable)
+		{
+			var hook = Ui.Current().GetOrCreate(0, static (store, _) => new ScriptableHook<T>(store));
+			hook.Bind(variable);
+			return new ScriptableState<T>(variable);
 		}
 
 		/// <summary>
 		/// Returns a Soap list and re-renders the component when items are added, removed, or cleared.
 		/// </summary>
-		public static IList<T> UseScriptable<T>(ScriptableList<T> list)
+		public static IReadOnlyList<T> UseScriptable<T>(ScriptableList<T> list)
 		{
 			var hook = Ui.Current().GetOrCreate(0, static (store, _) => new ScriptableCollectionHook(store));
-
 			hook.Bind(list);
-
 			return list;
 		}
 
@@ -43,9 +49,7 @@ namespace ReactiveUI.Soap
 			ScriptableDictionary<TKey, TValue> dictionary)
 		{
 			var hook = Ui.Current().GetOrCreate(0, static (store, _) => new ScriptableCollectionHook(store));
-
 			hook.Bind(dictionary);
-
 			return dictionary;
 		}
 
@@ -55,20 +59,15 @@ namespace ReactiveUI.Soap
 		public static void UseScriptableEvent<TState>(ScriptableEventNoParam evt, TState state, Action<TState> handler)
 		{
 			var hook = Ui.Current().GetOrCreate(0, static (store, _) => new ScriptableEventHook<TState>(store));
-
 			hook.Bind(evt, state, handler);
 		}
 
 		/// <summary>
 		/// Invokes <paramref name="handler"/> with the raised value whenever <paramref name="evt"/> is raised while this component is mounted.
 		/// </summary>
-		public static void UseScriptableEvent<TState, T>(
-			ScriptableEvent<T> evt,
-			TState state,
-			Action<TState, T> handler)
+		public static void UseScriptableEvent<TState, T>(ScriptableEvent<T> evt, TState state, Action<TState, T> handler)
 		{
 			var hook = Ui.Current().GetOrCreate(0, static (store, _) => new ScriptableEventHook<TState, T>(store));
-
 			hook.Bind(evt, state, handler);
 		}
 	}

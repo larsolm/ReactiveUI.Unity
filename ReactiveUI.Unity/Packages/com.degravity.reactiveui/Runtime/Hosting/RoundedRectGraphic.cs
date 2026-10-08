@@ -22,6 +22,7 @@ namespace ReactiveUI
 		private float _checkerCell;
 		private float _checkerLine;
 		private Color _checkerColor = Color.clear;
+		private bool _checkerRows;
 
 		public override Texture mainTexture => _texture != null ? _texture : base.mainTexture;
 
@@ -64,7 +65,7 @@ namespace ReactiveUI
 		/// </remarks>
 		public void Configure(Vector4 corners, Color fillColor, Gradient? gradient,
 			in BorderPaint border, IReadOnlyList<ResolvedShadow> shadows, Texture? texture,
-			float checkerCell, float checkerLine, Color checkerColor)
+			float checkerCell, float checkerLine, Color checkerColor, bool checkerRows = false)
 		{
 			if (!ReferenceEquals(_texture, texture))
 			{
@@ -79,6 +80,7 @@ namespace ReactiveUI
 				|| !_checkerCell.Equals(checkerCell)
 				|| !_checkerLine.Equals(checkerLine)
 				|| _checkerColor != checkerColor
+				|| _checkerRows != checkerRows
 				|| !ShadowsMatch(shadows);
 
 			if (!changed)
@@ -91,6 +93,7 @@ namespace ReactiveUI
 			_checkerCell = checkerCell;
 			_checkerLine = checkerLine;
 			_checkerColor = checkerColor;
+			_checkerRows = checkerRows;
 
 			_shadows.Clear();
 			for (var i = 0; i < shadows.Count; i++)
@@ -141,7 +144,7 @@ namespace ReactiveUI
 			if (_checkerCell > 0f && _checkerColor.a > 0f)
 			{
 				if (_checkerLine > 0f)
-					EmitGridLines(vh, rect, _checkerCell, _checkerLine, _checkerColor);
+					EmitGridLines(vh, rect, _checkerCell, _checkerLine, _checkerColor, _checkerRows);
 				else
 					EmitChecker(vh, rect, _checkerCell, _checkerColor);
 			}
@@ -816,13 +819,47 @@ namespace ReactiveUI
 		/// <summary>
 		/// Lines at the leading edge of every cell, measured from the top-left like a CSS background.
 		/// </summary>
-		private static void EmitGridLines(VertexHelper vh, Rect rect, float cell, float line, Color color)
+		/// <remarks>
+		/// Rows-only lines are feathered: a ramp up and back down, twice the line width wide, carrying the same
+		/// total ink. Scanlines sit near the pixel pitch, so hard-edged ones alias once the canvas is scaled or
+		/// projected.
+		/// </remarks>
+		private static void EmitGridLines(VertexHelper vh, Rect rect, float cell, float line, Color color, bool rowsOnly)
 		{
-			for (var x = rect.xMin; x < rect.xMax; x += cell)
-				AddQuad(vh, x, rect.yMin, Mathf.Min(x + line, rect.xMax), rect.yMax, color);
+			if (!rowsOnly)
+			{
+				for (var x = rect.xMin; x < rect.xMax; x += cell)
+					AddQuad(vh, x, rect.yMin, Mathf.Min(x + line, rect.xMax), rect.yMax, color);
 
-			for (var y = rect.yMax; y > rect.yMin; y -= cell)
-				AddQuad(vh, rect.xMin, Mathf.Max(y - line, rect.yMin), rect.xMax, y, color);
+				for (var y = rect.yMax; y > rect.yMin; y -= cell)
+					AddQuad(vh, rect.xMin, Mathf.Max(y - line, rect.yMin), rect.xMax, y, color);
+
+				return;
+			}
+
+			var clear = new Color(color.r, color.g, color.b, 0f);
+
+			for (var y = rect.yMax - 0.5f * line; y > rect.yMin; y -= cell)
+			{
+				AddRamp(vh, rect.xMin, Mathf.Max(y - line, rect.yMin), rect.xMax, y, clear, color);
+				AddRamp(vh, rect.xMin, y, rect.xMax, Mathf.Min(y + line, rect.yMax), color, clear);
+			}
+		}
+
+		/// <summary>A full-width quad shaded from <paramref name="bottom"/> at y0 to <paramref name="top"/> at y1.</summary>
+		private static void AddRamp(VertexHelper vh, float x0, float y0, float x1, float y1, Color bottom, Color top)
+		{
+			if (y1 <= y0)
+				return;
+
+			var index = vh.currentVertCount;
+			var uv = new Vector2(0.5f, 0.5f);
+			AddVert(vh, new Vector2(x0, y0), bottom, uv);
+			AddVert(vh, new Vector2(x1, y0), bottom, uv);
+			AddVert(vh, new Vector2(x1, y1), top, uv);
+			AddVert(vh, new Vector2(x0, y1), top, uv);
+			vh.AddTriangle(index, index + 1, index + 2);
+			vh.AddTriangle(index, index + 2, index + 3);
 		}
 
 		private static void AddQuad(VertexHelper vh, float x0, float y0, float x1, float y1, Color color)

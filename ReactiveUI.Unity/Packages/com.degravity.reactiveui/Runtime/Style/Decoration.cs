@@ -390,8 +390,9 @@ namespace ReactiveUI
 	}
 
 	/// <summary>
-	/// A repeating pattern painted over the fill — a two-tone checker (<c>-rui-checker: 50px rgba(…)</c>)
-	/// or, given a line width, a hairline grid (<c>-rui-grid: 48px 1px rgba(…)</c>).
+	/// A repeating pattern painted over the fill — a two-tone checker (<c>-rui-checker: 50px rgba(…)</c>),
+	/// given a line width a hairline grid (<c>-rui-grid: 48px 1px rgba(…)</c>), or with a leading
+	/// <c>rows</c> only its horizontal lines (<c>-rui-grid: rows 4px 1px rgba(…)</c>).
 	/// </summary>
 	/// <remarks>
 	/// Vendor-prefixed because it is not CSS. The alternative spellings, a
@@ -405,6 +406,9 @@ namespace ReactiveUI
 
 		/// <summary>Zero paints the checker; anything wider paints grid lines of that width.</summary>
 		public readonly StyleLength LineWidth;
+
+		/// <summary>Paints only the horizontal lines of the grid.</summary>
+		public readonly bool RowsOnly;
 
 		internal readonly VarColor Ink;
 
@@ -420,16 +424,17 @@ namespace ReactiveUI
 		{
 		}
 
-		internal Checker(StyleLength cellSize, StyleLength lineWidth, VarColor ink)
+		internal Checker(StyleLength cellSize, StyleLength lineWidth, VarColor ink, bool rowsOnly = false)
 		{
 			CellSize = cellSize;
 			LineWidth = lineWidth;
 			Ink = ink;
+			RowsOnly = rowsOnly;
 		}
 
 		object? IVarDependent.Substitute(IReadOnlyDictionary<int, StyleValue> scope)
 		{
-			return Ink.TryResolve(scope, out var color) ? new Checker(CellSize, LineWidth, color) : null;
+			return Ink.TryResolve(scope, out var color) ? new Checker(CellSize, LineWidth, new VarColor(color), RowsOnly) : null;
 		}
 
 		public bool Equals(Checker? other)
@@ -437,6 +442,7 @@ namespace ReactiveUI
 			return other is not null
 				&& CellSize.Equals(other.CellSize)
 				&& LineWidth.Equals(other.LineWidth)
+				&& RowsOnly == other.RowsOnly
 				&& Ink.Equals(other.Ink);
 		}
 
@@ -447,7 +453,7 @@ namespace ReactiveUI
 
 		public override int GetHashCode()
 		{
-			return HashCode.Combine(CellSize, LineWidth, Ink);
+			return HashCode.Combine(CellSize, LineWidth, Ink, RowsOnly);
 		}
 	}
 }

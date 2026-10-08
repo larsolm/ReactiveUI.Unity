@@ -193,7 +193,9 @@ namespace ReactiveUI
 			instance._state |= UiStates.s_enter.Mask;
 			_engine.NoteStateChanged();
 
-			instance.ApplyProps(node);
+			using (UiMarkers.ApplyProps[(int)instance.Kind].Auto())
+				instance.ApplyProps(node);
+
 			ApplyIdentityAndStyle(instance, node);
 
 			// Anything that responds to a press is somewhere navigation can land.
@@ -222,7 +224,10 @@ namespace ReactiveUI
 			{
 				case HostInstance host:
 					CancelExit(host);
-					host.ApplyProps(node);
+
+					using (UiMarkers.ApplyProps[(int)host.Kind].Auto())
+						host.ApplyProps(node);
+
 					ApplyIdentityAndStyle(host, node);
 					ReconcileChildren(host, node, depth + 1);
 					SyncHostChildren(host);
@@ -1042,7 +1047,9 @@ namespace ReactiveUI
 				return;
 
 			host._styleApplied = true;
-			host.ApplyStyle(computed, Context);
+
+			using (UiMarkers.ApplyStyle[(int)host.Kind].Auto())
+				host.ApplyStyle(computed, Context);
 
 			// After the cascade has landed, because an animation reads the node's cascaded values
 			// for the endpoints CSS leaves implicit — a track that starts past 0% runs from them.

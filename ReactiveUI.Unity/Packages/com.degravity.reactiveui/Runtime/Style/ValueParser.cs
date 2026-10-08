@@ -139,7 +139,12 @@ namespace ReactiveUI
 			value = default;
 
 			var parts = SplitTop(text, ' ');
-			if (parts.Count is not (2 or 3))
+			var rowsOnly = parts.Count > 0 && string.Equals(parts[0], "rows", StringComparison.OrdinalIgnoreCase);
+
+			if (rowsOnly)
+				parts.RemoveAt(0);
+
+			if (parts.Count is not (2 or 3) || (rowsOnly && parts.Count != 3))
 				return false;
 
 			if (!TryParseLength(parts[0], out var cell) || !TryColorOrVar(parts[parts.Count - 1], out var ink))
@@ -155,7 +160,7 @@ namespace ReactiveUI
 				line = width.AsLength();
 			}
 
-			value = StyleValue.OfReference(new Checker(cell.AsLength(), line, ink));
+			value = StyleValue.OfReference(new Checker(cell.AsLength(), line, ink, rowsOnly));
 
 			return true;
 		}

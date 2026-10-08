@@ -13,5 +13,5 @@ MonoBehaviour:
   m_Name: StyleSheets
   m_EditorClassIdentifier: ReactiveUI::ReactiveUI.StyleSheetManifest
   _sheets:
-  - {fileID: -4671746316274071102, guid: 89a9c4f24baea75489ece36d85902eef, type: 3}
-  - {fileID: -4671746316274071102, guid: 5dfaec9d44bd9e94eb61332add9d520d, type: 3}
+  - {fileID: 7433441132597879392, guid: 89a9c4f24baea75489ece36d85902eef, type: 3}
+  - {fileID: 7433441132597879392, guid: 5dfaec9d44bd9e94eb61332add9d520d, type: 3}

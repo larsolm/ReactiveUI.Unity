@@ -206,6 +206,8 @@ namespace ReactiveUI
 		/// </remarks>
 		internal override Element Invoke()
 		{
+			using var marker = RenderMarker<TComponent>.Marker.Auto();
+
 			var component = default(TComponent);
 
 			return component.Render(in _committed);
@@ -228,6 +230,8 @@ namespace ReactiveUI
 
 		internal override Element Invoke()
 		{
+			using var marker = RenderMarker<TComponent>.Marker.Auto();
+
 			var component = default(TComponent);
 
 			return component.Render();

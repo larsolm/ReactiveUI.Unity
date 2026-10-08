@@ -64,14 +64,14 @@ namespace ReactiveUI
 		/// <remarks>
 		/// Only the most recently mounted binding for an action is invoked.
 		/// </remarks>
-		public static void UseInputAction(InputAction? inputAction, Action action)
+		public static void UseInputAction(InputAction inputAction, Action action)
 		{
 			var hook = Current().GetOrCreate(0, static (store, _) => new InputActionHook(store));
 			hook.Bind(inputAction, action);
 		}
 
-		/// <inheritdoc cref="UseInputAction(InputAction?, Action)"/>
-		public static void UseInputAction<TState>(InputAction? inputAction, TState state, Action<TState> action)
+		/// <inheritdoc cref="UseInputAction(InputAction, Action)"/>
+		public static void UseInputAction<TState>(InputAction inputAction, TState state, Action<TState> action)
 		{
 			var hook = Current().GetOrCreate(0, static (store, _) => new InputActionHook<TState>(store));
 			hook.Bind(inputAction, state, action);

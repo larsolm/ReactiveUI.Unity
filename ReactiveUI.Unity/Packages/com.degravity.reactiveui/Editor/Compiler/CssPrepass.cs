@@ -106,6 +106,205 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
+		/// Rewrites the body of an <c>@scope</c> block into rules the CSS library parses on their own.
+		/// </summary>
+		/// <remarks>
+		/// Each run of declarations written directly in the block is wrapped in
+		/// <c>:where(:scope) { … }</c>, and each selector that opens on a combinator (<c>&gt; .item</c>)
+		/// gets <c>:where(:scope)</c> in front — which is how CSS reads both. Conditional group rules
+		/// inside the block are rewritten the same way; anything else is copied as written.
+		/// </remarks>
+		internal static string RelativizeScopeBody(string body)
+		{
+			var output = new StringBuilder(body.Length + 32);
+			RelativizeBlock(body, 0, body.Length, output);
+
+			return output.ToString();
+		}
+
+		private const string ScopeRoot = ":where(:scope)";
+
+		private static void RelativizeBlock(string text, int start, int end, StringBuilder output)
+		{
+			var statementStart = start;
+			var wrapping = false;
+			var depth = 0;
+			var i = start;
+
+			while (i < end)
+			{
+				var c = text[i];
+
+				if (c == '/' && i + 1 < end && text[i + 1] == '*')
+				{
+					var close = text.IndexOf("*/", i + 2, end - i - 2, StringComparison.Ordinal);
+					i = close < 0 ? end : close + 2;
+
+					continue;
+				}
+
+				if (c is '"' or '\'')
+				{
+					i = Math.Min(SkipString(text, i), end);
+
+					continue;
+				}
+
+				if (c == '(')
+				{
+					depth++;
+				}
+				else if (c == ')')
+				{
+					depth--;
+				}
+				else if (c == ';' && depth <= 0)
+				{
+					var statement = text.Substring(statementStart, i + 1 - statementStart);
+
+					if (IsAtRule(statement))
+						EndWrap(output, ref wrapping);
+					else
+						BeginWrap(output, ref wrapping);
+
+					output.Append(statement);
+					statementStart = i + 1;
+				}
+				else if (c == '{' && depth <= 0)
+				{
+					var close = MatchingBrace(text, i);
+					var blockEnd = close < 0 || close >= end ? end : close;
+					var prelude = text.Substring(statementStart, i - statementStart);
+
+					EndWrap(output, ref wrapping);
+
+					if (!IsAtRule(prelude))
+					{
+						output.Append(RelativizeSelectorList(prelude)).Append(text, i, Math.Min(blockEnd + 1, end) - i);
+					}
+					else if (IsConditionalGroup(prelude))
+					{
+						output.Append(prelude).Append('{');
+						RelativizeBlock(text, i + 1, blockEnd, output);
+
+						if (blockEnd < end)
+							output.Append('}');
+					}
+					else
+					{
+						output.Append(text, statementStart, Math.Min(blockEnd + 1, end) - statementStart);
+					}
+
+					i = blockEnd + 1;
+					statementStart = i;
+
+					continue;
+				}
+
+				i++;
+			}
+
+			// A last declaration may leave off its semicolon.
+			if (statementStart < end)
+			{
+				var rest = text.Substring(statementStart, end - statementStart);
+
+				if (HasContent(rest))
+					BeginWrap(output, ref wrapping);
+
+				output.Append(rest);
+			}
+
+			EndWrap(output, ref wrapping);
+		}
+
+		private static void BeginWrap(StringBuilder output, ref bool wrapping)
+		{
+			if (wrapping)
+				return;
+
+			output.Append(ScopeRoot).Append(" {");
+			wrapping = true;
+		}
+
+		private static void EndWrap(StringBuilder output, ref bool wrapping)
+		{
+			if (!wrapping)
+				return;
+
+			output.Append('}');
+			wrapping = false;
+		}
+
+		/// <summary>Puts <c>:where(:scope)</c> before each selector in a list that opens on a combinator.</summary>
+		private static string RelativizeSelectorList(string prelude)
+		{
+			var parts = new List<string>();
+			SelectorDesugar.SplitList(prelude, parts);
+
+			var changed = false;
+
+			for (var i = 0; i < parts.Count; i++)
+			{
+				var first = FirstContentIndex(parts[i]);
+
+				if (first < parts[i].Length && parts[i][first] is '>' or '+' or '~')
+				{
+					parts[i] = ScopeRoot + " " + parts[i];
+					changed = true;
+				}
+			}
+
+			return changed ? string.Join(", ", parts) + " " : prelude;
+		}
+
+		/// <summary>Whether a statement or prelude, past any whitespace and comments, is an at-rule.</summary>
+		private static bool IsAtRule(string text)
+		{
+			var first = FirstContentIndex(text);
+
+			return first < text.Length && text[first] == '@';
+		}
+
+		private static bool HasContent(string text) => FirstContentIndex(text) < text.Length;
+
+		/// <summary>The rules inside these are scoped like the rules around them.</summary>
+		private static bool IsConditionalGroup(string prelude)
+		{
+			var first = FirstContentIndex(prelude);
+
+			return IsKeywordAt(prelude, first, "@media")
+				|| IsKeywordAt(prelude, first, "@supports")
+				|| IsKeywordAt(prelude, first, "@layer")
+				|| IsKeywordAt(prelude, first, "@container");
+		}
+
+		/// <summary>The index of the first character that is neither whitespace nor inside a comment.</summary>
+		private static int FirstContentIndex(string text)
+		{
+			var i = 0;
+
+			while (i < text.Length)
+			{
+				if (char.IsWhiteSpace(text[i]))
+				{
+					i++;
+				}
+				else if (text[i] == '/' && i + 1 < text.Length && text[i + 1] == '*')
+				{
+					var end = text.IndexOf("*/", i + 2, StringComparison.Ordinal);
+					i = end < 0 ? text.Length : end + 2;
+				}
+				else
+				{
+					break;
+				}
+			}
+
+			return i;
+		}
+
+		/// <summary>
 		/// The index of the first <c>{</c> at or after <paramref name="start"/> that is not inside a
 		/// string, a comment or parentheses — where a rule's block opens.
 		/// </summary>

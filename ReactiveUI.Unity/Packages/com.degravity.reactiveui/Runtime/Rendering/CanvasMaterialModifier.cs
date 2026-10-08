@@ -4,8 +4,8 @@ using UnityEngine.UI;
 namespace ReactiveUI
 {
 	/// <summary>
-	/// Swaps its graphic's material for the gamma twin while the graphic sits under a
-	/// <see cref="GammaCanvas"/>.
+	/// Swaps its graphic's material for the twin its root canvas asks for: a projected twin under a
+	/// <see cref="ProjectedCanvas"/>, a gamma twin under a <see cref="GammaCanvas"/>.
 	/// </summary>
 	/// <remarks>
 	/// Rides uGUI's own material pipeline, so it works the same for a box, an image and a TMP run,
@@ -13,7 +13,7 @@ namespace ReactiveUI
 	/// material the graphic built and twins that.
 	/// </remarks>
 	[DisallowMultipleComponent]
-	internal sealed class GammaMaterialModifier : MonoBehaviour, IMaterialModifier
+	internal sealed class CanvasMaterialModifier : MonoBehaviour, IMaterialModifier
 	{
 		private Graphic? _graphic;
 
@@ -24,9 +24,15 @@ namespace ReactiveUI
 
 			var canvas = _graphic != null ? _graphic.canvas : null;
 
-			return canvas != null && GammaCanvas.Contains(canvas.rootCanvas)
-				? GammaMaterials.For(baseMaterial)
-				: baseMaterial;
+			if (canvas == null)
+				return baseMaterial;
+
+			var root = canvas.rootCanvas;
+
+			if (ProjectedCanvas.TryGet(root, out var projected))
+				return projected.TwinFor(baseMaterial);
+
+			return GammaCanvas.Contains(root) ? GammaMaterials.For(baseMaterial) : baseMaterial;
 		}
 	}
 }

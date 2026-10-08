@@ -6,6 +6,17 @@ namespace ReactiveUI
 	/// <summary>
 	/// Hosts a ReactiveUI tree under a Canvas. Subclass it and implement <see cref="CreateRoot"/>.
 	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A root loads every stylesheet, font and texture its type recorded in
+	/// <see cref="StylePreloadManifest"/> when its scene loads, whether or not it starts active. The
+	/// editor records them in Play mode.
+	/// </para>
+	/// <para>
+	/// The tree is built when the root is first enabled and kept until it is destroyed. Disabling the
+	/// root pauses the tree; enabling it again resumes it as it was.
+	/// </para>
+	/// </remarks>
 	public abstract class UiRoot : MonoBehaviour
 	{
 		[SerializeField]
@@ -26,33 +37,62 @@ namespace ReactiveUI
 
 		private UiRuntime? _runtime = null;
 
-		private void OnEnable()
+		protected virtual void Awake()
 		{
-			// In the editor a catalog watches every .css in the project, which is what makes hot
-			// reload work; it claims the source before anything reaches here. A build has no such
-			// catalog, so it loads the manifest the editor generated from those same files.
-			if (!StyleSheets.HasSource)
-				LoadStyleSheets();
+			EnsureStyleSheets();
 
-			_runtime = new UiRuntime(_container, _remSize, CreateInputBindings());
+			// Loads the sheets, fonts and textures this root recorded on earlier runs now, while the scene is
+			// loading, rather than the first time a screen needs them mid-game.
+			_runtime = new UiRuntime(_container, _remSize, CreateInputBindings(), null, GetType().FullName);
 			_runtime.SetRoot(CreateRoot);
+
+#if UNITY_EDITOR
+			// A script reload drops the runtime reference without destroying the root, which would leave
+			// its tree behind and build a second one.
+			UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += DisposeRuntime;
+#endif
 		}
 
-		private void OnDisable()
+		protected virtual void OnDestroy()
 		{
-			_runtime?.Dispose();
-			_runtime = null;
+			DisposeRuntime();
 		}
 
-		private void LateUpdate()
+		protected virtual void OnDisable()
+		{
+			_runtime?.Pause();
+		}
+
+		protected virtual void LateUpdate()
 		{
 			_runtime?.Update();
 		}
 
-
 		private void OnValidate()
 		{
 			_runtime?.SetRemSize(_remSize);
+		}
+
+		private void DisposeRuntime()
+		{
+#if UNITY_EDITOR
+			UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= DisposeRuntime;
+#endif
+
+			_runtime?.Dispose();
+			_runtime = null;
+		}
+
+		/// <summary>
+		/// Loads what this root's type recorded in <see cref="StylePreloadManifest"/>, without building
+		/// its tree.
+		/// </summary>
+		internal void Warm()
+		{
+			EnsureStyleSheets();
+
+			if (StylePreloads.Manifest?.Find(GetType().FullName) is { } entry)
+				StylePreloads.Warm(entry, StyleSheets.Source);
 		}
 
 		/// <summary>
@@ -83,16 +123,19 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Supplies the sheets a build renders with.
+		/// Supplies the sheets a build renders with, unless a source is already set.
 		/// </summary>
 		/// <remarks>
-		/// This path never runs in the editor — the catalog has already claimed the source by the time
-		/// <c>OnEnable</c> is reached — so it is worth being loud when it finds nothing. The failure it
-		/// guards against is a completely unstyled UI, which reads as a layout bug rather than a
-		/// missing-asset one and is miserable to chase.
+		/// In the editor a catalog watches every .css in the project, which is what makes hot reload
+		/// work, and it claims the source before anything reaches here. A build has no such catalog, so
+		/// it loads the manifest the editor generated from those same files — and is loud when it finds
+		/// nothing, because a completely unstyled UI reads as a layout bug rather than a missing asset.
 		/// </remarks>
-		private void LoadStyleSheets()
+		private void EnsureStyleSheets()
 		{
+			if (StyleSheets.HasSource)
+				return;
+
 			var manifest = Resources.Load<StyleSheetManifest>(StyleSheetManifest.ResourcePath);
 			var sheets = manifest == null ? null : manifest.Sheets;
 

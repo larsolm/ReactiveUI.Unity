@@ -51,7 +51,7 @@ namespace ReactiveUI
 		/// Maps each item in <paramref name="source"/> to a child element, skipping nulls.
 		/// </summary>
 		public static Projection<TSource, TState> Each<TSource, TState>(
-			IList<TSource>? source,
+			IReadOnlyList<TSource> source,
 			TState state,
 			Func<TSource, TState, Element?> select)
 		{
@@ -62,7 +62,7 @@ namespace ReactiveUI
 		/// Maps each item in <paramref name="source"/> and its index to a child element, skipping nulls.
 		/// </summary>
 		public static IndexedProjection<TSource, TState> Each<TSource, TState>(
-			IList<TSource>? source,
+			IReadOnlyList<TSource> source,
 			TState state,
 			Func<TSource, int, TState, Element?> select)
 		{

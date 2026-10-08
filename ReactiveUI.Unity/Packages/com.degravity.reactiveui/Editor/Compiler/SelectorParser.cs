@@ -240,6 +240,22 @@ namespace ReactiveUI
 							continue;
 						}
 
+						// `:where(:scope)`: the scoping root, adding nothing to specificity.
+						if (name.Equals("where", StringComparison.OrdinalIgnoreCase) && TryReadWhereScope(selector, ref index))
+						{
+							if (_scope.InScope)
+							{
+								_simples.Add(new SimpleSelector(SelectorKind.ScopeRoot, 0));
+							}
+							else
+							{
+								stateMask |= UiStates.s_root.Mask;
+								_simples.Add(new SimpleSelector(SelectorKind.PseudoClass, UiStates.s_root._index));
+							}
+
+							continue;
+						}
+
 						// Functional pseudo-classes are parsed far enough to reject them clearly.
 						if (index < selector.Length && selector[index] == '(')
 						{
@@ -317,6 +333,25 @@ namespace ReactiveUI
 			classes++;
 			stateMask |= UiStates.s_root.Mask;
 			_simples.Add(new SimpleSelector(SelectorKind.PseudoClass, UiStates.s_root._index));
+		}
+
+		/// <summary>
+		/// Reads <c>(:scope)</c> at <paramref name="index"/>, advancing past it only when that is exactly
+		/// what is there.
+		/// </summary>
+		private static bool TryReadWhereScope(string selector, ref int index)
+		{
+			if (index >= selector.Length || selector[index] != '(')
+				return false;
+
+			var close = selector.IndexOf(')', index);
+
+			if (close < 0 || !selector.Substring(index + 1, close - index - 1).Trim().Equals(":scope", StringComparison.OrdinalIgnoreCase))
+				return false;
+
+			index = close + 1;
+
+			return true;
 		}
 
 		/// <summary>The host primitives, which are the only types a selector can name.</summary>

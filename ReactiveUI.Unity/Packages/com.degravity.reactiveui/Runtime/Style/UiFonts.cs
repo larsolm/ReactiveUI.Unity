@@ -10,7 +10,8 @@ namespace ReactiveUI
 	/// Maps CSS <c>font-family</c> names and weights to TextMeshPro font assets.
 	/// </summary>
 	/// <remarks>
-	/// Fonts declared with <c>@font-face</c> are registered automatically.
+	/// Fonts declared with <c>@font-face</c> are registered automatically, and loaded when a root that
+	/// recorded them starts or else on first use.
 	/// </remarks>
 	// Only ever repopulated by a sheet rebuild, which entering Play mode does not trigger.
 	[NoAutoStaticsCleanup]
@@ -21,8 +22,22 @@ namespace ReactiveUI
 		/// </summary>
 		public const int NormalWeight = 400;
 
-		private static readonly Dictionary<string, List<(int Weight, TMP_FontAsset Font)>> s_families =
-			new(StringComparer.OrdinalIgnoreCase);
+		/// <summary>A registered face, or a declared one whose asset loads on first use.</summary>
+		private struct Face
+		{
+			public int Weight;
+			public TMP_FontAsset? Font;
+			public string? ResourcePath;
+			public string? DeclaredIn;
+		}
+
+		private static readonly Dictionary<string, List<Face>> s_families = new(StringComparer.OrdinalIgnoreCase);
+
+		/// <summary>The <c>Resources</c> path each loaded declared face came from.</summary>
+		private static readonly Dictionary<TMP_FontAsset, string> s_paths = new();
+
+		/// <summary>Fonts whose lookup tables have been built.</summary>
+		private static readonly HashSet<TMP_FontAsset> s_warmed = new();
 
 		// Resolution happens per restyle rather than once per sheet, so an unregistered family would
 		// otherwise warn every frame it is styled.
@@ -39,23 +54,40 @@ namespace ReactiveUI
 			if (string.IsNullOrEmpty(family) || font == null)
 				return;
 
+			Add(family, new Face { Weight = weight, Font = font });
+		}
+
+		/// <summary>
+		/// Declares the face of <paramref name="family"/> at <paramref name="weight"/> as the font asset
+		/// at <paramref name="resourcePath"/> under a <c>Resources</c> folder, loaded when first resolved.
+		/// </summary>
+		internal static void Declare(string family, string resourcePath, int weight, string declaredIn)
+		{
+			if (string.IsNullOrEmpty(family) || string.IsNullOrEmpty(resourcePath))
+				return;
+
+			Add(family, new Face { Weight = weight, ResourcePath = resourcePath, DeclaredIn = declaredIn });
+		}
+
+		private static void Add(string family, Face face)
+		{
 			if (!s_families.TryGetValue(family, out var faces))
 			{
-				faces = new List<(int, TMP_FontAsset)>(1);
+				faces = new List<Face>(1);
 				s_families[family] = faces;
 			}
 
 			for (var i = 0; i < faces.Count; i++)
 			{
-				if (faces[i].Weight != weight)
+				if (faces[i].Weight != face.Weight)
 					continue;
 
-				faces[i] = (weight, font);
+				faces[i] = face;
 
 				return;
 			}
 
-			faces.Add((weight, font));
+			faces.Add(face);
 		}
 
 		/// <summary>
@@ -68,17 +100,41 @@ namespace ReactiveUI
 			if (string.IsNullOrEmpty(family))
 				return null;
 
-			if (s_families.TryGetValue(family!, out var faces) && faces.Count > 0)
+			if (s_families.TryGetValue(family!, out var faces))
 			{
-				var best = faces[0];
-
-				for (var i = 1; i < faces.Count; i++)
+				// A declared face whose asset is missing is dropped, and the next nearest tried.
+				while (faces.Count > 0)
 				{
-					if (Mathf.Abs(faces[i].Weight - weight) < Mathf.Abs(best.Weight - weight))
-						best = faces[i];
-				}
+					var best = 0;
 
-				return best.Font;
+					for (var i = 1; i < faces.Count; i++)
+					{
+						if (Mathf.Abs(faces[i].Weight - weight) < Mathf.Abs(faces[best].Weight - weight))
+							best = i;
+					}
+
+					var face = faces[best];
+
+					if (face.Font != null)
+					{
+						StylePreloads.Note(PreloadKind.Font, face.ResourcePath);
+
+						return face.Font;
+					}
+
+					face.Font = Load(face.ResourcePath!);
+
+					if (face.Font != null)
+					{
+						faces[best] = face;
+						StylePreloads.Note(PreloadKind.Font, face.ResourcePath);
+
+						return face.Font;
+					}
+
+					Debug.LogWarning($"[ReactiveUI] {face.DeclaredIn}: no font asset at Resources/{face.ResourcePath}.");
+					faces.RemoveAt(best);
+				}
 			}
 
 			if (s_warned.Add((family, weight)))
@@ -117,9 +173,138 @@ namespace ReactiveUI
 			return index >= 1 && table != null && index < table.Length && table[index].regularTypeface != null;
 		}
 
+		/// <summary>
+		/// Loads every declared face at <paramref name="resourcePath"/> that has not loaded yet, and has
+		/// TextMeshPro build the asset's lookup tables.
+		/// </summary>
+		/// <remarks>A face whose asset is missing is left for <see cref="Resolve"/> to report.</remarks>
+		internal static void Preload(string resourcePath) => PreloadFont(resourcePath);
+
+		private static TMP_FontAsset? PreloadFont(string resourcePath)
+		{
+			TMP_FontAsset? font = null;
+
+			foreach (var faces in s_families.Values)
+			{
+				for (var i = 0; i < faces.Count; i++)
+				{
+					var face = faces[i];
+
+					if (!string.Equals(face.ResourcePath, resourcePath, StringComparison.Ordinal))
+						continue;
+
+					if (face.Font != null)
+					{
+						font = face.Font;
+
+						continue;
+					}
+
+					font ??= Load(resourcePath);
+
+					if (font == null)
+						return null;
+
+					face.Font = font;
+					faces[i] = face;
+				}
+			}
+
+			if (font != null && s_warmed.Add(font))
+			{
+				using (UiMarkers.WarmFont.Auto())
+					font.ReadFontAssetDefinition();
+			}
+
+			return font;
+		}
+
+		/// <summary>
+		/// Adds <paramref name="characters"/> to the atlas of the declared font at
+		/// <paramref name="resourcePath"/>, or of its fallbacks for any it does not have.
+		/// </summary>
+		internal static void AddCharacters(string resourcePath, string characters)
+		{
+			if (!string.IsNullOrEmpty(characters) && PreloadFont(resourcePath) is { } font)
+				AddCharacters(font, characters);
+		}
+
+		/// <summary>
+		/// Adds <paramref name="characters"/> to the atlas of <paramref name="font"/>, or of its fallbacks
+		/// for any it does not have.
+		/// </summary>
+		/// <remarks>A static atlas takes nothing, and is left as it is.</remarks>
+		internal static void AddCharacters(TMP_FontAsset font, string characters)
+		{
+			var unicodes = new List<uint>(characters.Length);
+
+			foreach (var codePoint in StylePreloadManifest.CodePoints(characters))
+				unicodes.Add((uint)codePoint);
+
+			using var marker = UiMarkers.WarmFont.Auto();
+
+			if (TryAdd(font, unicodes.ToArray(), out var missing) || font.fallbackFontAssetTable is not { } fallbacks)
+				return;
+
+			foreach (var fallback in fallbacks)
+			{
+				if (fallback != null && TryAdd(fallback, missing, out missing))
+					return;
+			}
+		}
+
+		/// <summary>Adds what it can of <paramref name="unicodes"/>, and says whether nothing is left.</summary>
+		private static bool TryAdd(TMP_FontAsset font, uint[] unicodes, out uint[] missing)
+		{
+			if (font.atlasPopulationMode == AtlasPopulationMode.Static)
+			{
+				missing = unicodes;
+
+				return false;
+			}
+
+			font.TryAddCharacters(unicodes, out missing);
+
+			return missing is not { Length: > 0 };
+		}
+
+		/// <summary>The <c>Resources</c> path <paramref name="font"/> was loaded from, or null if it was registered directly.</summary>
+		internal static string? PathOf(TMP_FontAsset? font) =>
+			font != null && s_paths.TryGetValue(font, out var path) ? path : null;
+
+		private static TMP_FontAsset? Load(string resourcePath)
+		{
+			TMP_FontAsset? font;
+
+			using (UiMarkers.LoadFont.Auto())
+				font = Resources.Load<TMP_FontAsset>(resourcePath);
+
+			if (font != null)
+				s_paths[font] = resourcePath;
+
+			return font;
+		}
+
+		/// <summary>Whether a declared face at <paramref name="resourcePath"/> has its asset loaded.</summary>
+		internal static bool IsLoaded(string resourcePath)
+		{
+			foreach (var faces in s_families.Values)
+			{
+				foreach (var face in faces)
+				{
+					if (face.Font != null && string.Equals(face.ResourcePath, resourcePath, StringComparison.Ordinal))
+						return true;
+				}
+			}
+
+			return false;
+		}
+
 		internal static void Clear()
 		{
 			s_families.Clear();
+			s_paths.Clear();
+			s_warmed.Clear();
 			s_warned.Clear();
 		}
 	}
@@ -149,10 +334,14 @@ namespace ReactiveUI
 			if (string.IsNullOrEmpty(path))
 				return null;
 
+			StylePreloads.Note(PreloadKind.Texture, path);
+
 			// A miss is cached as null too: the warning has already been logged and re-loading a
 			// missing asset every restyle would cost more than the entry.
 			if (s_textures.TryGetValue(path!, out var cached))
 				return cached;
+
+			using var marker = UiMarkers.LoadTexture.Auto();
 
 			var texture = Resources.Load<Texture>(path!);
 

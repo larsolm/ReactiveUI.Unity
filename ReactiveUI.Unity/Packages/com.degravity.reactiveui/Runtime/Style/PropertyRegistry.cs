@@ -143,7 +143,9 @@ namespace ReactiveUI
 			// and the ring around a live piece are all box-shadows, so this is load-bearing rather
 			// than decorative. `-rui-checker` is the one extension: a repeating two-tone grid the
 			// mesh painter draws in a single pass. `-rui-grid` is its hairline form, an alias whose
-			// extra line width is what tells the painter to draw lines instead of cells.
+			// extra line width is what tells the painter to draw lines instead of cells; a leading
+			// `rows` keeps only the horizontal lines. The distinction lives in the value, not the
+			// name, because a var() is re-read in the syntax of the property id's first name.
 			Add("-rui-checker", PropId.Checker, ValueSyntax.Checker);
 			Add("-rui-grid", PropId.Checker, ValueSyntax.Checker);
 

@@ -26,7 +26,7 @@ namespace ReactiveUI
 		{
 			_image = BuildGraphicChild("Sprite").gameObject.AddComponent<UIImage>();
 			_image.raycastTarget = false;
-			_image.gameObject.AddComponent<GammaMaterialModifier>();
+			_image.gameObject.AddComponent<CanvasMaterialModifier>();
 		}
 
 		internal override void ApplyProps(int node)

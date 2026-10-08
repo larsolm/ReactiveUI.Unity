@@ -26,6 +26,7 @@ namespace ReactiveUI
 		private readonly UiInputDriver _input;
 		private readonly MediaWatch _watch = new();
 		private readonly IStyleSheetSource? _sheetSource;
+		private readonly string? _preloadKey;
 
 		private Func<Element>? _rootFactory;
 		private bool _rootPending;
@@ -47,10 +48,19 @@ namespace ReactiveUI
 		/// Sheets private to this runtime instead of the project-wide <see cref="StyleSheets"/>, so a
 		/// test can style a tree without disturbing the editor's live catalog.
 		/// </param>
+		/// <param name="preloadKey">
+		/// The <see cref="StylePreloadManifest"/> entry this runtime loads at start and records into;
+		/// null for neither.
+		/// </param>
 		internal UiRuntime(
-			RectTransform container, float remSize, UiInputBindings? inputBindings, IStyleSheetSource? sheetSource)
+			RectTransform container,
+			float remSize,
+			UiInputBindings? inputBindings,
+			IStyleSheetSource? sheetSource,
+			string? preloadKey = null)
 		{
 			_sheetSource = sheetSource;
+			_preloadKey = preloadKey;
 
 			_container = container;
 			_remSize = remSize;
@@ -74,7 +84,8 @@ namespace ReactiveUI
 			_engine.SetMediaEnvironment(environment);
 			_watch.Publish(environment);
 
-			_engine.SetSheets(CurrentSheets);
+			_engine.SetSheets(CurrentSource);
+			Preload();
 
 			if (_sheetSource is null)
 				StyleSheets.Changed += OnStyleSheetsChanged;
@@ -84,7 +95,7 @@ namespace ReactiveUI
 			InputDeviceTracker.Listen();
 			InputDeviceTracker.Changed += OnInputDeviceChanged;
 
-			var overlayObject = new GameObject("__ReactiveUIOverlay", typeof(RectTransform));
+			var overlayObject = new GameObject("ReactiveUIOverlay", typeof(RectTransform));
 			var overlayRect = overlayObject.GetComponent<RectTransform>();
 			overlayRect.SetParent(container, worldPositionStays: false);
 			overlayRect.SetAsLastSibling();
@@ -141,33 +152,96 @@ namespace ReactiveUI
 
 		internal void Update()
 		{
+			var previous = StylePreloads.Current;
+			StylePreloads.Current = _preloadKey;
+
+			try
+			{
+				UpdateFrame();
+			}
+			finally
+			{
+				StylePreloads.Current = previous;
+			}
+		}
+
+		/// <summary>
+		/// Loads what this runtime's root recorded: its sheets into the engine, and their fonts and
+		/// textures, so none of it loads mid-game the first time a node needs it.
+		/// </summary>
+		private void Preload()
+		{
+			if (_preloadKey is null || StylePreloads.Manifest?.Find(_preloadKey) is not { } entry)
+				return;
+
+			StylePreloads.Warm(entry, CurrentSource);
+
+			if (CurrentSource is { } source)
+			{
+				foreach (var path in entry.Sheets)
+					_engine.Preload(source.SlotOf(path));
+			}
+		}
+
+		/// <summary>
+		/// Clears hover and press states, which a hidden tree never hears end.
+		/// </summary>
+		/// <remarks>Everything else keeps its state and resumes with the next <see cref="Update"/>.</remarks>
+		internal void Pause() => ClearPointerStates(_root);
+
+		private static void ClearPointerStates(Instance instance)
+		{
+			if (instance is HostInstance host)
+			{
+				host.SetState(UiStates.s_hover, false);
+				host.SetState(UiStates.s_active, false);
+			}
+
+			if (instance._children is null)
+				return;
+
+			for (var i = 0; i < instance._children.Count; i++)
+				ClearPointerStates(instance._children[i]);
+		}
+
+		private void UpdateFrame()
+		{
 			// Input first, so a device switch it notices reaches this frame's styles rather than the next.
-			_input.Update();
+			using (UiMarkers.Input.Auto())
+				_input.Update();
 
-			SampleEnvironment();
+			using (UiMarkers.Environment.Auto())
+				SampleEnvironment();
 
-			if (_rootPending && _rootFactory is not null)
+			using (UiMarkers.Reconcile.Auto())
 			{
-				_rootPending = false;
-				_reconciler.ReconcileRoot(_root, _rootFactory());
-			}
-
-			if (_restylePending)
-			{
-				_restylePending = false;
-
-				if (_rootFactory is not null)
+				if (_rootPending && _rootFactory is not null)
+				{
+					_rootPending = false;
 					_reconciler.ReconcileRoot(_root, _rootFactory());
+				}
+
+				if (_restylePending)
+				{
+					_restylePending = false;
+
+					if (_rootFactory is not null)
+						_reconciler.ReconcileRoot(_root, _rootFactory());
+				}
+
+				FlushRenders();
 			}
 
-			FlushRenders();
-
-			_reconciler.SyncOverlay(_root, _overlay);
+			using (UiMarkers.Overlay.Auto())
+				_reconciler.SyncOverlay(_root, _overlay);
 
 			Layout();
 
-			_reconciler.TickLifecycle(Time.unscaledDeltaTime);
-			_scheduler.FlushEffects();
+			using (UiMarkers.Lifecycle.Auto())
+				_reconciler.TickLifecycle(Time.unscaledDeltaTime);
+
+			using (UiMarkers.Effects.Auto())
+				_scheduler.FlushEffects();
 
 			// Every element declared this frame is dead now: the instances hold the committed props,
 			// the hosts hold the captured inline entries, and nothing below reads an element again.
@@ -227,11 +301,12 @@ namespace ReactiveUI
 			_deviceChanged = true;
 		}
 
-		private IReadOnlyList<StyleSheet> CurrentSheets => _sheetSource?.Sheets ?? StyleSheets.Current;
+		private IStyleSheetSource? CurrentSource => _sheetSource ?? StyleSheets.Source;
 
 		private void OnStyleSheetsChanged()
 		{
-			_engine.SetSheets(CurrentSheets);
+			_engine.SetSheets(CurrentSource);
+			Preload();
 			MarkMatchDirty(_root);
 			_restylePending = true;
 		}
@@ -286,18 +361,24 @@ namespace ReactiveUI
 			if (!resized && !_root._yoga.IsDirty && !_overlay._yoga.IsDirty)
 				return;
 
-			_root._yoga.Width = YogaValue.Point(size.x);
-			_root._yoga.Height = YogaValue.Point(size.y);
-			_root._yoga.CalculateLayout(size.x, size.y);
+			using (UiMarkers.LayoutCalculate.Auto())
+			{
+				_root._yoga.Width = YogaValue.Point(size.x);
+				_root._yoga.Height = YogaValue.Point(size.y);
+				_root._yoga.CalculateLayout(size.x, size.y);
 
-			// The overlay is a separate layout root: portalled content is positioned against the
-			// screen, not against wherever it happened to be declared.
-			_overlay._yoga.Width = YogaValue.Point(size.x);
-			_overlay._yoga.Height = YogaValue.Point(size.y);
-			_overlay._yoga.CalculateLayout(size.x, size.y);
+				// The overlay is a separate layout root: portalled content is positioned against the
+				// screen, not against wherever it happened to be declared.
+				_overlay._yoga.Width = YogaValue.Point(size.x);
+				_overlay._yoga.Height = YogaValue.Point(size.y);
+				_overlay._yoga.CalculateLayout(size.x, size.y);
+			}
 
-			ApplyLayout(_root);
-			ApplyLayout(_overlay);
+			using (UiMarkers.LayoutApply.Auto())
+			{
+				ApplyLayout(_root);
+				ApplyLayout(_overlay);
+			}
 		}
 
 		private static void ApplyLayout(HostInstance host)

@@ -3,6 +3,7 @@ using System.Linq;
 using NUnit.Framework;
 using ReactiveUI.Editor;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace ReactiveUI.Tests
 {
@@ -22,11 +23,14 @@ namespace ReactiveUI.Tests
 
 		public ulong State { get; set; }
 
+		/// <summary>The host type name the node answers to, or null for none.</summary>
+		public string Type { get; set; }
+
 		public IMatchTarget MatchParent => _parent;
 		public IMatchTarget MatchPreviousSibling => null;
 		public ClassSet MatchClasses => _classes;
 		public ulong MatchState => State;
-		public bool MatchesType(int typeId) => false;
+		public bool MatchesType(int typeId) => Type is not null && ClassTable.Intern(Type) == typeId;
 	}
 
 	public sealed class StyleSheetCompilerTests
@@ -42,6 +46,10 @@ namespace ReactiveUI.Tests
 			_created.Clear();
 		}
 
+		/// <summary>Gives the editor back the fonts the test libraries cleared.</summary>
+		[OneTimeTearDown]
+		public void RestoreCatalog() => CssCatalog.Reload(changed: null);
+
 		private CompiledStyleSheet CompileAsset(string path, string css, List<string> diagnostics = null)
 		{
 			var result = CssCompiler.Compile(css, path);
@@ -50,23 +58,30 @@ namespace ReactiveUI.Tests
 			diagnostics?.AddRange(result.Diagnostics);
 
 			var asset = ScriptableObject.CreateInstance<CompiledStyleSheet>();
-			asset.Set(path, result.Data, result.Classes, result.UnscopedClasses, result.Imports, result.Diagnostics.ToArray());
+			result.WriteTo(asset, path);
 			_created.Add(asset);
 
 			return asset;
 		}
 
-		/// <summary>Compiles, orders and links sheets the way the catalog does, and returns an engine over them.</summary>
-		private StyleEngine Load(params (string Path, string Css)[] files)
+		/// <summary>Compiles, orders and links sheets the way a player does, reading each on demand.</summary>
+		private StyleSheetLibrary Library(params (string Path, string Css)[] files)
 		{
 			var sources = CssAssets.Order(files.Select(file => CompileAsset(file.Path, file.Css)).ToList(), report: false);
-			var sheets = sources.Select(source => source.Load()).ToList();
-			var diagnostics = new List<string>();
+			var library = new StyleSheetLibrary();
 
-			CascadeLayers.Rank(sources, sheets, diagnostics);
+			library.Load(sources);
 
+			return library;
+		}
+
+		/// <summary>Compiles, orders and links sheets, and returns an engine over them.</summary>
+		private StyleEngine Load(params (string Path, string Css)[] files) => Engine(Library(files));
+
+		private static StyleEngine Engine(IStyleSheetSource source)
+		{
 			var engine = new StyleEngine(new StyleContext(16f));
-			engine.SetSheets(sheets);
+			engine.SetSheets(source);
 
 			return engine;
 		}
@@ -315,8 +330,9 @@ namespace ReactiveUI.Tests
 		{
 			var diagnostics = new List<string>();
 			var asset = CompileAsset("Assets/Nested.css", ".outer { opacity: 0.1; @scope (.z) { .w { opacity: 0.2; } } }", diagnostics);
-			var engine = new StyleEngine(new StyleContext(16f));
-			engine.SetSheets(new[] { asset.Load() });
+			var library = new StyleSheetLibrary();
+			library.Load(new[] { asset });
+			var engine = Engine(library);
 
 			Assert.That(diagnostics, Has.Some.Contains("@scope inside a style rule"));
 			Assert.AreEqual(-1f, Opacity(engine, new Node(null, "w")), "must not leak to every .w");
@@ -330,6 +346,65 @@ namespace ReactiveUI.Tests
 
 			CollectionAssert.AreEqual(new[] { "title" }, asset.UnscopedClasses);
 			CollectionAssert.AreEqual(new[] { "card", "label", "title" }, asset.Classes);
+		}
+
+		[Test]
+		public void Scope_BareDeclarationsStyleTheRoot()
+		{
+			var engine = Load("@scope (.card) { opacity: 0.5; .label { opacity: 0.3; } }");
+			var card = new Node(null, "card");
+
+			Assert.AreEqual(0.5f, Opacity(engine, card));
+			Assert.AreEqual(0.3f, Opacity(engine, new Node(card, "label")));
+			Assert.AreEqual(-1f, Opacity(engine, new Node(card, "row")), "only the root itself");
+		}
+
+		[Test]
+		public void Scope_BareDeclarationsAddNoSpecificity()
+		{
+			// Bare declarations are `:where(:scope)` at (0,0,0) and lose to `.card` at (0,1,0) whatever the
+			// order; `:scope` ties `.card`, and the scoped rule wins the tie.
+			var bare = Load(".card { opacity: 0.2; } @scope (.card) { opacity: 0.1; }");
+			var pseudo = Load(".card { opacity: 0.2; } @scope (.card) { :scope { opacity: 0.3; } }");
+
+			Assert.AreEqual(0.2f, Opacity(bare, new Node(null, "card")));
+			Assert.AreEqual(0.3f, Opacity(pseudo, new Node(null, "card")));
+		}
+
+		[Test]
+		public void Scope_LeadingCombinatorIsRelativeToTheRoot()
+		{
+			var engine = Load("@scope (.card) { > .label { opacity: 0.5; > .icon { opacity: 0.6; } } }");
+			var card = new Node(null, "card");
+			var label = new Node(card, "label");
+
+			Assert.AreEqual(0.5f, Opacity(engine, label));
+			Assert.AreEqual(-1f, Opacity(engine, new Node(new Node(card, "row"), "label")), "needs a direct child");
+			Assert.AreEqual(0.6f, Opacity(engine, new Node(label, "icon")));
+			Assert.AreEqual(-1f, Opacity(engine, new Node(new Node(label, "row"), "icon")), "nested `>` holds too");
+		}
+
+		[Test]
+		public void Scope_BareDeclarationsInsideGroupRules()
+		{
+			var engine = Load("@scope (.card) { @layer base { opacity: 0.5; > .label { opacity: 0.4; } } }");
+			var card = new Node(null, "card");
+
+			Assert.AreEqual(0.5f, Opacity(engine, card));
+			Assert.AreEqual(0.4f, Opacity(engine, new Node(card, "label")));
+		}
+
+		[Test]
+		public void Scope_BareDeclarationsKeepTheRulesAfterThem()
+		{
+			var diagnostics = new List<string>();
+			var asset = CompileAsset(
+				"Assets/Screen.css",
+				"@scope (.screen) { flex-grow: 1; > .prompt { margin-top: 1px; > .text { opacity: 1; } } align-items: center }",
+				diagnostics);
+
+			CollectionAssert.IsEmpty(diagnostics);
+			CollectionAssert.AreEqual(new[] { "prompt", "screen", "text" }, asset.Classes);
 		}
 
 		#endregion
@@ -390,6 +465,294 @@ namespace ReactiveUI.Tests
 			Assert.AreEqual("Assets/UI/Theme.css", CssBuilder.ResolveImport("Assets/UI/Card/Card.css", "../Theme.css"));
 			Assert.AreEqual("Assets/UI/Card/Parts.css", CssBuilder.ResolveImport("Assets/UI/Card/Card.css", "./Parts.css"));
 			Assert.AreEqual("Packages/com.x/Base.css", CssBuilder.ResolveImport("Assets/UI/Card.css", "Packages/com.x/Base.css"));
+		}
+
+		#endregion
+
+		#region Rule index and lazy loading
+
+		[Test]
+		public void Index_MatchesByTypeAndUniversally()
+		{
+			var engine = Load("Text { opacity: 0.1; } * { opacity: 0.2; } .ix-row Text { opacity: 0.3; }");
+
+			Assert.AreEqual(0.1f, Opacity(engine, new Node(null) { Type = "Text" }));
+			Assert.AreEqual(0.3f, Opacity(engine, new Node(new Node(null, "ix-row")) { Type = "Text" }));
+			Assert.AreEqual(0.2f, Opacity(engine, new Node(null) { Type = "View" }));
+		}
+
+		[Test]
+		public void Index_CompoundOfClassesNeedsEveryClass()
+		{
+			var engine = Load(".ix-a.ix-b { opacity: 0.4; } .ix-b { opacity: 0.1; }");
+
+			Assert.AreEqual(0.4f, Opacity(engine, new Node(null, "ix-a", "ix-b")));
+			Assert.AreEqual(0.4f, Opacity(engine, new Node(null, "ix-b", "ix-a")));
+			Assert.AreEqual(-1f, Opacity(engine, new Node(null, "ix-a")));
+			Assert.AreEqual(0.1f, Opacity(engine, new Node(null, "ix-b")));
+		}
+
+		[Test]
+		public void Index_NeedsPointerFindsHoverCompounds()
+		{
+			var byClass = Load(".ix-card:hover .ix-title { opacity: 0.5; }");
+
+			Assert.IsTrue(byClass.NeedsPointer(new Node(null, "ix-card")));
+			Assert.IsFalse(byClass.NeedsPointer(new Node(null, "ix-title")));
+
+			var byType = Load("Text:hover { opacity: 0.5; }");
+
+			Assert.IsTrue(byType.NeedsPointer(new Node(null) { Type = "Text" }));
+			Assert.IsFalse(byType.NeedsPointer(new Node(null) { Type = "View" }));
+
+			Assert.IsTrue(Load(":hover { opacity: 0.5; }").NeedsPointer(new Node(null)));
+		}
+
+		[TestCase(".lz-a { opacity: 1; } .lz-b .lz-c { opacity: 1; }", false)]
+		[TestCase(".lz-a:hover { opacity: 1; } @scope (View) { .lz-b { opacity: 1; } }", false)]
+		[TestCase("Text { opacity: 1; }", true)]
+		[TestCase("View:hover .lz-a { opacity: 1; }", true)]
+		[TestCase("@scope (.lz-card) { :scope { opacity: 1; } }", true)]
+		[TestCase(".lz-a { animation-name: lz-k; } @keyframes lz-k { from { opacity: 0; } }", true)]
+		public void Lazy_ClassifiesSheets(string css, bool eager)
+		{
+			Assert.AreEqual(eager, CompileAsset("Assets/Lazy.css", css).Eager);
+		}
+
+		[Test]
+		public void Lazy_ReadsASheetWhenItsClassFirstAppears()
+		{
+			var library = Library(
+				("Assets/A.css", "Text { opacity: 0.1; }"),
+				("Assets/B.css", ".lz-b { opacity: 0.5; }"),
+				("Assets/C.css", ".lz-c { opacity: 0.6; }"));
+			var engine = Engine(library);
+
+			Assert.AreEqual(1, library.ReadCount, "only the eager sheet");
+			Assert.AreEqual(-1f, Opacity(engine, new Node(null, "lz-other")));
+			Assert.AreEqual(1, library.ReadCount);
+
+			Assert.AreEqual(0.5f, Opacity(engine, new Node(null, "lz-b")));
+			Assert.AreEqual(2, library.ReadCount);
+
+			Assert.AreEqual(0.5f, Opacity(engine, new Node(null, "lz-b")));
+			Assert.AreEqual(2, library.ReadCount);
+		}
+
+		[Test]
+		public void Lazy_AncestorClassReadsTheSheet()
+		{
+			var library = Library(("Assets/A.css", ".lz-panel .lz-label { opacity: 0.7; }"));
+			var engine = Engine(library);
+			var panel = new Node(null, "lz-panel");
+
+			Opacity(engine, panel);
+
+			Assert.AreEqual(1, library.ReadCount);
+			Assert.AreEqual(0.7f, Opacity(engine, new Node(panel, "lz-label")));
+		}
+
+		[Test]
+		public void Lazy_KeepsLayerAndDocumentOrder()
+		{
+			var engine = Load(
+				("Assets/A.css", "@layer base, theme; Text { opacity: 0.1; }"),
+				("Assets/B.css", "@layer theme { .lz-x { opacity: 0.2; } }"),
+				("Assets/C.css", "@layer base { .lz-x.lz-y { opacity: 0.3; } }"),
+				("Assets/D.css", ".lz-z { opacity: 0.4; }"),
+				("Assets/E.css", ".lz-z { opacity: 0.7; }"));
+
+			Assert.AreEqual(0.2f, Opacity(engine, new Node(null, "lz-x", "lz-y")), "a later layer beats specificity");
+			Assert.AreEqual(0.7f, Opacity(engine, new Node(null, "lz-z")), "the later sheet wins a tie");
+		}
+
+		[Test]
+		public void Lazy_FontsLoadOnFirstResolve()
+		{
+			UiFonts.Clear();
+			UiFonts.Declare("LzMissing", "ReactiveUI/NoSuchFont", UiFonts.NormalWeight, "Assets/Fonts.css");
+
+			LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("no font asset at Resources/ReactiveUI/NoSuchFont"));
+			Assert.IsNull(UiFonts.Resolve("LzMissing"));
+
+			// The missing face is dropped, so a second resolve warns about the family instead.
+			LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("No font registered for font-family 'LzMissing'"));
+			Assert.IsNull(UiFonts.Resolve("LzMissing"));
+		}
+
+		private sealed class ListRecorder : IStylePreloadRecorder
+		{
+			public readonly List<(string Root, PreloadKind Kind, string Path)> Records = new();
+			public readonly List<(string Root, string Font, string Text)> Characters = new();
+
+			public void Record(string root, PreloadKind kind, string path) => Records.Add((root, kind, path));
+
+			public void RecordCharacters(string root, string font, string text) => Characters.Add((root, font, text));
+		}
+
+		/// <summary>Runs <paramref name="body"/> recording into a fresh recorder as <paramref name="root"/>.</summary>
+		private static ListRecorder Recording(string root, System.Action body)
+		{
+			var recorder = new ListRecorder();
+			var previousRecorder = StylePreloads.Recorder;
+			var previousCurrent = StylePreloads.Current;
+
+			StylePreloads.Recorder = recorder;
+			StylePreloads.Current = root;
+
+			try
+			{
+				body();
+			}
+			finally
+			{
+				StylePreloads.Recorder = previousRecorder;
+				StylePreloads.Current = previousCurrent;
+			}
+
+			return recorder;
+		}
+
+		[Test]
+		public void Preload_ActivatesASheetBeforeItsClassesAppear()
+		{
+			var library = Library(
+				("Assets/A.css", "Text { opacity: 0.1; }"),
+				("Assets/B.css", ".pl-b { opacity: 0.5; }"));
+			var engine = Engine(library);
+
+			engine.Preload(library.SlotOf("Assets/B.css"));
+			engine.Preload(library.SlotOf("Assets/Missing.css"));
+
+			Assert.AreEqual(2, library.ReadCount);
+			Assert.AreEqual(0.5f, Opacity(engine, new Node(null, "pl-b")));
+		}
+
+		[Test]
+		public void Preload_RecordsOnlySheetsActivatedOnDemand()
+		{
+			var library = Library(
+				("Assets/A.css", "Text { opacity: 0.1; }"),
+				("Assets/B.css", ".pl-b { opacity: 0.5; }"),
+				("Assets/C.css", ".pl-c { opacity: 0.6; }"));
+			var engine = Engine(library);
+
+			engine.Preload(library.SlotOf("Assets/B.css"));
+
+			var recorder = Recording("Game.Root", () =>
+			{
+				Opacity(engine, new Node(null, "pl-b"));
+				Opacity(engine, new Node(null, "pl-c"));
+				Opacity(engine, new Node(null, "pl-c"));
+				Opacity(engine, new Node(null) { Type = "Text" });
+			});
+
+			CollectionAssert.AreEqual(new[] { ("Game.Root", PreloadKind.Sheet, "Assets/C.css") }, recorder.Records);
+		}
+
+		[Test]
+		public void Preload_LoadsDeclaredFontsAndRecordsResolvedOnes()
+		{
+			const string path = "Fonts & Materials/LiberationSans SDF";
+
+			UiFonts.Clear();
+			UiFonts.Declare("PlSans", path, UiFonts.NormalWeight, "Assets/Fonts.css");
+
+			Assert.IsFalse(UiFonts.IsLoaded(path));
+
+			UiFonts.Preload(path);
+
+			Assert.IsTrue(UiFonts.IsLoaded(path));
+
+			var recorder = Recording("Game.Root", () => Assert.IsNotNull(UiFonts.Resolve("PlSans")));
+
+			CollectionAssert.AreEqual(new[] { ("Game.Root", PreloadKind.Font, path) }, recorder.Records);
+		}
+
+		[Test]
+		public void Preload_ManifestKeepsEachListSortedAndUnique()
+		{
+			var manifest = ScriptableObject.CreateInstance<StylePreloadManifest>();
+			_created.Add(manifest);
+
+			Assert.IsTrue(manifest.Add("Game.Root", PreloadKind.Sheet, "Assets/B.css", out var first));
+			Assert.IsTrue(manifest.Add("Game.Root", PreloadKind.Sheet, "Assets/A.css", out var second));
+			Assert.IsFalse(manifest.Add("Game.Root", PreloadKind.Sheet, "Assets/B.css", out _));
+			Assert.IsTrue(manifest.Add("Game.Root", PreloadKind.Font, "Fonts/Body", out _));
+
+			Assert.IsTrue(first);
+			Assert.IsFalse(second);
+			Assert.IsNull(manifest.Find("Game.Other"));
+
+			var entry = manifest.Find("Game.Root");
+
+			CollectionAssert.AreEqual(new[] { "Assets/A.css", "Assets/B.css" }, entry.Sheets);
+			CollectionAssert.AreEqual(new[] { "Fonts/Body" }, entry.Fonts);
+			CollectionAssert.IsEmpty(entry.Textures);
+		}
+
+		[Test]
+		public void Preload_ManifestKeepsCharactersSortedAndUnique()
+		{
+			var manifest = ScriptableObject.CreateInstance<StylePreloadManifest>();
+			_created.Add(manifest);
+
+			Assert.IsTrue(manifest.AddCharacters("Game.Root", "Fonts/Body", StylePreloadManifest.CodePoints("cab"), out var newRoot));
+			Assert.IsTrue(manifest.AddCharacters("Game.Root", "Fonts/Body", StylePreloadManifest.CodePoints("bd\U0001F600"), out _));
+			Assert.IsFalse(manifest.AddCharacters("Game.Root", "Fonts/Body", StylePreloadManifest.CodePoints("ab"), out _));
+
+			Assert.IsTrue(newRoot);
+
+			var characters = manifest.Find("Game.Root").Characters;
+
+			Assert.AreEqual(1, characters.Count);
+			Assert.AreEqual("abcd\U0001F600", characters[0].Characters, "a surrogate pair stays whole");
+		}
+
+		[Test]
+		public void Preload_AddsCharactersToADynamicAtlas()
+		{
+			var source = UnityEditor.AssetDatabase.LoadAssetAtPath<Font>("Assets/TextMesh Pro/Fonts/LiberationSans.ttf");
+			var font = TMPro.TMP_FontAsset.CreateFontAsset(source);
+
+			_created.Add(font);
+			_created.Add(font.material);
+			_created.AddRange(font.atlasTextures);
+
+			Assert.IsFalse(font.HasCharacters("Qz"));
+
+			UiFonts.AddCharacters(font, "Qz");
+
+			Assert.IsTrue(font.HasCharacters("Qz"));
+		}
+
+		[Test]
+		public void Preload_TextRecordsTheCharactersItRenders()
+		{
+			const string path = "Fonts & Materials/LiberationSans SDF";
+
+			var library = Library(("Assets/Fonts.css",
+				"@font-face { font-family: 'TxSans'; src: resource('" + path + "'); } Text { font-family: 'TxSans'; text-transform: uppercase; }"));
+			var container = new GameObject("Container", typeof(RectTransform));
+			var runtime = new UiRuntime((RectTransform)container.transform, 32f, null, library, "Game.Root");
+			var recorder = new ListRecorder();
+			var previous = StylePreloads.Recorder;
+
+			StylePreloads.Recorder = recorder;
+
+			try
+			{
+				runtime.SetRoot(() => new Text(ClassName.Intern("tx-label"), new TextProps("abc")));
+				runtime.Update();
+			}
+			finally
+			{
+				StylePreloads.Recorder = previous;
+				runtime.Dispose();
+				Object.DestroyImmediate(container);
+			}
+
+			CollectionAssert.Contains(recorder.Characters, ("Game.Root", path, "ABC"), "recorded as rendered, after text-transform");
 		}
 
 		[Test]

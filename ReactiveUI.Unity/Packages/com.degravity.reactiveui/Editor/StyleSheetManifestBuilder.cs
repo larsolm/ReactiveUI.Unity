@@ -15,7 +15,7 @@ namespace ReactiveUI.Editor
 	/// </remarks>
 	internal static class StyleSheetManifestBuilder
 	{
-		private const string DefaultFolder = "Assets/Plugins/ReactiveUI/Resources/ReactiveUI";
+		internal const string DefaultFolder = "Assets/Plugins/ReactiveUI/Resources/ReactiveUI";
 		private const string AssetName = "StyleSheets.asset";
 
 		[MenuItem("Tools/ReactiveUI/Rebuild Stylesheet Manifest")]
@@ -89,7 +89,7 @@ namespace ReactiveUI.Editor
 			return manifest;
 		}
 
-		private static bool EnsureFolder(string folder)
+		internal static bool EnsureFolder(string folder)
 		{
 			var segments = folder.Split('/');
 			var current = segments[0];

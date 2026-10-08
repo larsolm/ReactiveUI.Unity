@@ -411,6 +411,8 @@ namespace ReactiveUI
 			/// Root and limit selectors become ordinary entries in the selector table. A rule inside the
 			/// scope that names neither <c>:scope</c> nor <c>&amp;</c> is made relative to the root, as if
 			/// written <c>:where(:scope) …</c> — matched below the root, with no added specificity.
+			/// Declarations written directly in the block style the root itself, as
+			/// <c>:where(:scope) { … }</c>; see <see cref="CssPrepass.RelativizeScopeBody"/>.
 			/// </para>
 			/// </remarks>
 			private void BuildScope(string text, in Position position)
@@ -460,7 +462,7 @@ namespace ReactiveUI
 				var index = _scopes.Count;
 				_scopes.Add(new ScopeRecord(rootStart, rootCount, limitStart, limitCount, position.Scope));
 
-				var parsed = Parse(body, _sourceName, _diagnostics);
+				var parsed = Parse(CssPrepass.RelativizeScopeBody(body), _sourceName, _diagnostics);
 
 				if (parsed is null)
 					return;
@@ -543,14 +545,11 @@ namespace ReactiveUI
 							var text = authored;
 							var relative = position.Scope != 0 && !SelectorParser.ReferencesScope(text);
 
-							// `:where(:scope) …`: the root is required but adds nothing to specificity.
+							// The root is required but adds nothing to specificity.
 							if (relative)
-								text = ":scope " + text;
+								text = ":where(:scope) " + text;
 
 							if (!_selectorParser.TryParse(text, out var record, context)) continue;
-
-							if (relative)
-								record = record.WithSpecificity(record.Specificity - SelectorRecord.PackSpecificity(1, 0));
 
 							group.Add(record);
 

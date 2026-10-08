@@ -91,7 +91,7 @@ namespace ReactiveUI.Editor
 		/// The sheets that were reimported, which are read again; every other sheet keeps what it loaded
 		/// as. Null reads everything.
 		/// </param>
-		private static void Reload(HashSet<string>? changed)
+		internal static void Reload(HashSet<string>? changed)
 		{
 			var sources = CssAssets.LoadAll();
 			var sheets = new List<StyleSheet?>(sources.Count);

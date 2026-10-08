@@ -974,7 +974,8 @@ namespace ReactiveUI
 					texture,
 					checkerCell: checker is null ? 0f : ctx.Resolve(checker.CellSize),
 					checkerLine: checker is null ? 0f : ctx.Resolve(checker.LineWidth),
-					checkerColor: checker?.Color ?? Color.clear);
+					checkerColor: checker?.Color ?? Color.clear,
+					checkerRows: checker is { RowsOnly: true });
 
 				_setFill ??= value =>
 				{
@@ -1088,7 +1089,7 @@ namespace ReactiveUI
 			{
 				_graphic = Ensure<RoundedRectGraphic>(null);
 				_graphic.raycastTarget = AlwaysPaint;
-				Ensure<GammaMaterialModifier>(null);
+				Ensure<CanvasMaterialModifier>(null);
 			}
 
 			_graphic.enabled = true;

@@ -63,6 +63,16 @@ namespace ExCSS.Tests
         }
 
         [Fact]
+        public void WhereParentNestsAndAddsNoSpecificity()
+        {
+            var rule = ParseRule(":where(:scope) > .prompt { color: #0000ff; > .text { color: #ff0000; } }");
+            Assert.Equal(":where(:scope)>.prompt", rule.SelectorText);
+            Assert.Equal(Priority.OneClass, rule.Selector.Specificity);
+            var nested = (IStyleRule)Assert.Single(rule.NestedRules);
+            Assert.Equal(":is(:where(:scope)>.prompt)>.text", nested.SelectorText);
+        }
+
+        [Fact]
         public void HexColorInNestedValueSurvivesTheLookahead()
         {
             // Regression: the classify-then-rewind must not corrupt a `#rrggbb` value (value-mode `#`

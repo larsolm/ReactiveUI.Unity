@@ -20,7 +20,7 @@ namespace ReactiveUI
 
 			// Parked off-scene and never saved, so pooled nodes cost nothing to render and do not
 			// leak into the user's hierarchy.
-			var parent = new GameObject("__ReactiveUIPool") { hideFlags = HideFlags.DontSave };
+			var parent = new GameObject("ReactiveUIPool") { hideFlags = HideFlags.DontSave };
 			parent.SetActive(false);
 			_poolParent = parent.transform;
 		}
@@ -72,50 +72,52 @@ namespace ReactiveUI
 
 		private HostInstance Create(HostKind kind)
 		{
+			using var marker = UiMarkers.CreateHost[(int)kind].Auto();
+
 			var gameObject = new GameObject(HostInstance.NameOf(kind), typeof(RectTransform));
 			var yoga = new YogaNode(_yogaConfig);
 
 			switch (kind)
 			{
 				case HostKind.Text:
-				{
-					var host = new TextHost();
-					host.Initialize(gameObject, yoga);
-					host.Build();
+					{
+						var host = new TextHost();
+						host.Initialize(gameObject, yoga);
+						host.Build();
 
-					return host;
-				}
+						return host;
+					}
 				case HostKind.Image:
-				{
-					var host = new ImageHost();
-					host.Initialize(gameObject, yoga);
-					host.Build();
+					{
+						var host = new ImageHost();
+						host.Initialize(gameObject, yoga);
+						host.Build();
 
-					return host;
-				}
+						return host;
+					}
 				case HostKind.Pressable:
-				{
-					var host = new PressableHost();
-					host.Initialize(gameObject, yoga);
-					host.Bind(gameObject.AddComponent<PressableBehaviour>());
+					{
+						var host = new PressableHost();
+						host.Initialize(gameObject, yoga);
+						host.Bind(gameObject.AddComponent<PressableBehaviour>());
 
-					return host;
-				}
+						return host;
+					}
 				case HostKind.Scroll:
-				{
-					var host = new ScrollHost();
-					host.Initialize(gameObject, yoga);
-					host.Build();
+					{
+						var host = new ScrollHost();
+						host.Initialize(gameObject, yoga);
+						host.Build();
 
-					return host;
-				}
+						return host;
+					}
 				default:
-				{
-					var host = new VisualHost();
-					host.Initialize(gameObject, yoga);
+					{
+						var host = new VisualHost();
+						host.Initialize(gameObject, yoga);
 
-					return host;
-				}
+						return host;
+					}
 			}
 		}
 

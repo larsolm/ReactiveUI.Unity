@@ -60,7 +60,7 @@ namespace ReactiveUI
 		/// <summary>Compiled <c>@media</c> conditions. Index 0 is the unconditional query.</summary>
 		/// <remarks>
 		/// Only the conditions live here, never their answers: sheets are shared process-wide through
-		/// <see cref="StyleSheets.Current"/>, and two runtimes rendering into differently sized
+		/// <see cref="StyleSheets.Source"/>, and two runtimes rendering into differently sized
 		/// containers ask the same query different questions. The answers belong to the engine.
 		/// </remarks>
 		public readonly MediaQuery[] MediaQueries;

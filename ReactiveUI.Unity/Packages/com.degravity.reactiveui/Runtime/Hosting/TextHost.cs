@@ -81,7 +81,7 @@ namespace ReactiveUI
 		{
 			_tmp = BuildGraphicChild("Glyphs").gameObject.AddComponent<TextMeshProUGUI>();
 			_tmp.raycastTarget = false;
-			_tmp.gameObject.AddComponent<GammaMaterialModifier>();
+			_tmp.gameObject.AddComponent<CanvasMaterialModifier>();
 			_yoga.SetMeasureFunction(Measure);
 		}
 
@@ -93,6 +93,7 @@ namespace ReactiveUI
 			_content = content;
 			ApplyContent();
 			InvalidateMeasure();
+			NoteCharacters();
 		}
 
 		/// <summary>
@@ -197,6 +198,29 @@ namespace ReactiveUI
 			_tmp.horizontalAlignment = Alignment(align);
 			_tmp.verticalAlignment = Alignment(verticalAlign);
 			_tmp.textWrappingMode = whiteSpace == WhiteSpace.NoWrap ? TextWrappingModes.NoWrap : TextWrappingModes.Normal;
+
+			NoteCharacters();
+		}
+
+		/// <summary>
+		/// Records the characters this run renders against its font, so a root that preloads the font
+		/// adds them to its atlas up front.
+		/// </summary>
+		private void NoteCharacters()
+		{
+			if (!StylePreloads.Recording || UiFonts.PathOf(_tmp.font) is not { } font)
+				return;
+
+			var text = _tmp.text;
+
+			text = _transform switch
+			{
+				TextTransform.Uppercase => text.ToUpperInvariant(),
+				TextTransform.Lowercase => text.ToLowerInvariant(),
+				_ => text,
+			};
+
+			StylePreloads.NoteCharacters(font, text);
 		}
 
 		protected override bool PaintsContent => true;
@@ -258,7 +282,10 @@ namespace ReactiveUI
 			if (_measureCache.TryGetValue(key, out var cached)) return cached;
 
 			var constraint = widthMode == YogaMeasureMode.Undefined ? float.PositiveInfinity : width;
-			var preferred = _tmp.GetPreferredValues(_tmp.text, constraint, float.PositiveInfinity);
+			Vector2 preferred;
+
+			using (UiMarkers.MeasureText.Auto())
+				preferred = _tmp.GetPreferredValues(_tmp.text, constraint, float.PositiveInfinity);
 
 			var measuredWidth = widthMode switch
 			{

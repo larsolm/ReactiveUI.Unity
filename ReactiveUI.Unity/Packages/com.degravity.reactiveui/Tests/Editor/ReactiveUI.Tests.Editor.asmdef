@@ -4,6 +4,7 @@
     "references": [
         "ReactiveUI",
         "ReactiveUI.Editor",
+        "Unity.TextMeshPro",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

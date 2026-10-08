@@ -21,7 +21,7 @@ namespace ReactiveUI.Editor
 	/// fixing it is an ordinary reimport rather than a missing asset.
 	/// </para>
 	/// </remarks>
-	[ScriptedImporter(version: 2, ext: "css")]
+	[ScriptedImporter(version: 3, ext: "css")]
 	internal sealed class CssImporter : ScriptedImporter
 	{
 		public override void OnImportAsset(AssetImportContext ctx)
@@ -43,13 +43,7 @@ namespace ReactiveUI.Editor
 			var result = CssCompiler.Compile(css, ctx.assetPath);
 			var compiled = ScriptableObject.CreateInstance<CompiledStyleSheet>();
 
-			compiled.Set(
-				ctx.assetPath,
-				result.Data,
-				result.Classes,
-				result.UnscopedClasses,
-				result.Imports,
-				result.Diagnostics.ToArray());
+			result.WriteTo(compiled, ctx.assetPath);
 
 			ctx.AddObjectToAsset("stylesheet", compiled);
 			ctx.SetMainObject(compiled);

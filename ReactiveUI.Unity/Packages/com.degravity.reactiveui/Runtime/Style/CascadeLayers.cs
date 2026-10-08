@@ -9,8 +9,8 @@ namespace ReactiveUI
 	/// <remarks>
 	/// <para>
 	/// A layer's position is decided by where it is first named across the whole set of sheets, taken
-	/// in cascade order, so no single sheet can know its own ranks. Each sheet carries its layer names
-	/// and this fills in <see cref="StyleSheet.LayerRanks"/> once the set is known.
+	/// in cascade order, so no single sheet can know its own ranks. Each compiled sheet records its layer
+	/// names, and this ranks them once the set is known.
 	/// </para>
 	/// <para>
 	/// Layers form a tree — <c>framework.utilities</c> sits inside <c>framework</c> — and ranks come
@@ -26,55 +26,51 @@ namespace ReactiveUI
 	/// </remarks>
 	internal static class CascadeLayers
 	{
-		internal static void Rank(
-			IReadOnlyList<CompiledStyleSheet> sources,
-			IReadOnlyList<StyleSheet> sheets,
-			List<string> diagnostics)
+		/// <summary>
+		/// Ranks every source's layers from its metadata, without loading any sheet.
+		/// </summary>
+		/// <returns>
+		/// Per source, the value for <see cref="StyleSheet.LayerRanks"/>: index 0 for its unlayered rules,
+		/// then one per entry of <see cref="CompiledStyleSheet.LayerNames"/>.
+		/// </returns>
+		internal static int[][] Rank(IReadOnlyList<CompiledStyleSheet> sources, List<string> diagnostics)
 		{
 			var importLayers = ImportLayers(sources, diagnostics, out var importers);
-			var prefixes = new string[sheets.Count];
+			var prefixes = new string[sources.Count];
 			var root = new Node(string.Empty);
-			var any = false;
 
-			for (var i = 0; i < sheets.Count; i++)
+			for (var i = 0; i < sources.Count; i++)
 			{
 				var prefix = Prefix(sources[i].SourcePath, importLayers, importers, 0);
 				prefixes[i] = prefix;
 
 				if (prefix.Length > 0)
-				{
 					root.Find(prefix);
-					any = true;
-				}
 
-				foreach (var local in sheets[i].LayerNames)
-				{
+				foreach (var local in sources[i].LayerNames)
 					root.Find(Join(prefix, local));
-					any = true;
-				}
-			}
-
-			if (!any)
-			{
-				foreach (var sheet in sheets)
-					Array.Fill(sheet.LayerRanks, int.MaxValue);
-
-				return;
 			}
 
 			var next = 0;
 			root.AssignRanks(ref next);
 
-			for (var i = 0; i < sheets.Count; i++)
+			var ranks = new int[sources.Count][];
+
+			for (var i = 0; i < sources.Count; i++)
 			{
-				var sheet = sheets[i];
+				var names = sources[i].LayerNames;
 				var prefix = prefixes[i];
+				var sheetRanks = new int[names.Count + 1];
 
-				sheet.LayerRanks[0] = prefix.Length == 0 ? int.MaxValue : root.Find(prefix).Rank;
+				sheetRanks[0] = prefix.Length == 0 ? int.MaxValue : root.Find(prefix).Rank;
 
-				for (var l = 0; l < sheet.LayerNames.Length; l++)
-					sheet.LayerRanks[l + 1] = root.Find(Join(prefix, sheet.LayerNames[l])).Rank;
+				for (var l = 0; l < names.Count; l++)
+					sheetRanks[l + 1] = root.Find(Join(prefix, names[l])).Rank;
+
+				ranks[i] = sheetRanks;
 			}
+
+			return ranks;
 		}
 
 		/// <summary>Which layer each imported sheet was asked to sit in, and by whom.</summary>
