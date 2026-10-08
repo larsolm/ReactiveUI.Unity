@@ -50,9 +50,13 @@ namespace ReactiveUI.Tests
 		[OneTimeTearDown]
 		public void RestoreCatalog() => CssCatalog.Reload(changed: null);
 
-		private CompiledStyleSheet CompileAsset(string path, string css, List<string> diagnostics = null)
+		private CompiledStyleSheet CompileAsset(
+			string path,
+			string css,
+			List<string> diagnostics = null,
+			System.Func<string, string> readSheet = null)
 		{
-			var result = CssCompiler.Compile(css, path);
+			var result = CssCompiler.Compile(css, path, readSheet);
 
 			Assert.IsNotNull(result.Sheet, string.Join("\n", result.Diagnostics));
 			diagnostics?.AddRange(result.Diagnostics);
@@ -67,7 +71,10 @@ namespace ReactiveUI.Tests
 		/// <summary>Compiles, orders and links sheets the way a player does, reading each on demand.</summary>
 		private StyleSheetLibrary Library(params (string Path, string Css)[] files)
 		{
-			var sources = CssAssets.Order(files.Select(file => CompileAsset(file.Path, file.Css)).ToList(), report: false);
+			var sheets = Sheets(files);
+			var sources = CssAssets.Order(
+				files.Select(file => CompileAsset(file.Path, file.Css, readSheet: path => sheets.TryGetValue(path, out var css) ? css : null)).ToList(),
+				report: false);
 			var library = new StyleSheetLibrary();
 
 			library.Load(sources);
@@ -121,6 +128,8 @@ namespace ReactiveUI.Tests
 @keyframes pulse { from { opacity: 0; } 50% { opacity: 1; animation-timing-function: linear; } to { opacity: 0.5; } }
 @layer theme { .card { opacity: 0.9; } }
 @scope (.card) to (.slot) { :scope > .label { opacity: 0.1; } & .icon { opacity: 0.2; } .label { opacity: 0.3; } }
+@mixin --raised(--depth: 2px) { box-shadow: 0 var(--depth) 4px var(--shade); &:hover { opacity: 0.95; } }
+.panel { @apply --raised(6px); }
 ";
 
 		[Test]
@@ -405,6 +414,232 @@ namespace ReactiveUI.Tests
 
 			CollectionAssert.IsEmpty(diagnostics);
 			CollectionAssert.AreEqual(new[] { "prompt", "screen", "text" }, asset.Classes);
+		}
+
+		#endregion
+
+		#region @mixin and @apply
+
+		private static Dictionary<string, string> Sheets(params (string Path, string Css)[] files) =>
+			files.ToDictionary(file => file.Path, file => file.Css);
+
+		private static CssCompiler.Result CompileWithImports(string path, string css, Dictionary<string, string> sheets) =>
+			CssCompiler.Compile(css, path, other => sheets.TryGetValue(other, out var text) ? text : null);
+
+		[Test]
+		public void Mixin_AppliesItsDeclarations()
+		{
+			var engine = Load("@mixin --faded { opacity: 0.3; } .x { @apply --faded; }");
+
+			Assert.AreEqual(0.3f, Opacity(engine, new Node(null, "x")));
+		}
+
+		[Test]
+		public void Mixin_LaterDeclarationsWin()
+		{
+			var engine = Load("@mixin --faded { opacity: 0.3; } .x { @apply --faded; opacity: 0.6; } .y { opacity: 0.6; @apply --faded; }");
+
+			Assert.AreEqual(0.6f, Opacity(engine, new Node(null, "x")));
+			Assert.AreEqual(0.3f, Opacity(engine, new Node(null, "y")));
+		}
+
+		[TestCase("@apply --fade(0.4);", 0.4f)]
+		[TestCase("@apply --fade;", 0.7f)]
+		[TestCase("@apply --fade();", 0.7f)]
+		[TestCase("@apply --fade({0.25});", 0.25f)]
+		public void Mixin_ParameterTakesArgumentOrDefault(string apply, float expected)
+		{
+			var engine = Load($"@mixin --fade(--amount <number>: 0.7) {{ opacity: var(--amount); }} .x {{ {apply} }}");
+
+			Assert.AreEqual(expected, Opacity(engine, new Node(null, "x")));
+		}
+
+		[Test]
+		public void Mixin_VarFallbackCoversAParameterWithNoValue()
+		{
+			var engine = Load("@mixin --fade(--amount) { opacity: var(--amount, 0.15); } .x { @apply --fade; }");
+
+			Assert.AreEqual(0.15f, Opacity(engine, new Node(null, "x")));
+		}
+
+		[Test]
+		public void Mixin_ArgumentWithCommasIsWrappedInBraces()
+		{
+			var result = CssCompiler.Compile(
+				"@mixin --shadow(--layers, --amount) { box-shadow: var(--layers); opacity: var(--amount); }"
+				+ ".x { @apply --shadow({0 1px 2px #000, 0 0 1px #fff}, 0.5); }",
+				"Assets/Shadow.css");
+
+			CollectionAssert.IsEmpty(result.Diagnostics);
+			Assert.AreEqual(1, result.Sheet.Rules.Length);
+			Assert.That(result.Sheet.Declarations.Select(d => d.Id), Has.Member(PropId.Opacity));
+		}
+
+		[Test]
+		public void Mixin_ContentsTakesTheBlockOrItsFallback()
+		{
+			const string mixin = "@mixin --hover { &:hover { @contents { opacity: 0.1; } } }";
+
+			var passed = Load(mixin + " .x { @apply --hover { opacity: 0.8; } }");
+			var fallback = Load(mixin + " .x { @apply --hover; }");
+			var x = new Node(null, "x") { State = UiStates.s_hover.Mask };
+
+			Assert.AreEqual(0.8f, Opacity(passed, x));
+			Assert.AreEqual(0.1f, Opacity(fallback, x));
+		}
+
+		[Test]
+		public void Mixin_ContentsBlockDoesNotSeeTheParameters()
+		{
+			var diagnostics = new List<string>();
+			var expanded = CssMixins.Expand(
+				"@mixin --wrap(--amount: 0.1) { opacity: var(--amount); @contents; } .x { @apply --wrap { width: var(--amount); } }",
+				"Assets/Wrap.css",
+				null,
+				diagnostics,
+				new List<string>());
+
+			CollectionAssert.IsEmpty(diagnostics);
+			StringAssert.Contains("opacity: 0.1;", expanded);
+			StringAssert.Contains("width: var(--amount);", expanded);
+		}
+
+		[Test]
+		public void Mixin_NestedRulesNestUnderTheApplyingRule()
+		{
+			var engine = Load("@mixin --button { opacity: 0.5; &:hover { opacity: 0.9; } .icon { opacity: 0.4; } } .b { @apply --button; }");
+			var button = new Node(null, "b");
+
+			Assert.AreEqual(0.5f, Opacity(engine, button));
+			Assert.AreEqual(0.4f, Opacity(engine, new Node(button, "icon")));
+			Assert.AreEqual(-1f, Opacity(engine, new Node(null, "icon")), "must not leak to every .icon");
+
+			button.State = UiStates.s_hover.Mask;
+
+			Assert.AreEqual(0.9f, Opacity(engine, button));
+		}
+
+		[Test]
+		public void Mixin_MediaInsideTheBodyStaysConditional()
+		{
+			var result = CssCompiler.Compile(
+				"@mixin --narrow { @media (max-width: 40rem) { opacity: 0.5; } } .x { @apply --narrow; }",
+				"Assets/Narrow.css");
+
+			CollectionAssert.IsEmpty(result.Diagnostics);
+			Assert.AreEqual(1, result.Sheet.Rules.Length);
+			Assert.AreNotEqual(0, result.Sheet.Rules[0].MediaQueryIndex);
+		}
+
+		[Test]
+		public void Mixin_AppliesOtherMixinsWithItsParameters()
+		{
+			var engine = Load(
+				"@mixin --fade(--amount) { opacity: var(--amount); }"
+				+ "@mixin --dim(--level: 0.35) { @apply --fade(var(--level)); }"
+				+ ".x { @apply --dim; } .y { @apply --dim(0.45); }");
+
+			Assert.AreEqual(0.35f, Opacity(engine, new Node(null, "x")));
+			Assert.AreEqual(0.45f, Opacity(engine, new Node(null, "y")));
+		}
+
+		[Test]
+		public void Mixin_LastDefinitionWinsAndMayFollowItsUse()
+		{
+			var engine = Load(".x { @apply --fade; } @mixin --fade { opacity: 0.1; } @mixin --fade { opacity: 0.2; }");
+
+			Assert.AreEqual(0.2f, Opacity(engine, new Node(null, "x")));
+		}
+
+		[TestCase(".x { @apply --nothing; }", "names no mixin")]
+		[TestCase("@mixin --m { opacity: 1; } .x { @apply --m(1); }", "passes 1 arguments")]
+		[TestCase("@mixin --m(--a) { opacity: var(--a); } .x { @apply --m; }", "leaves --a without a value")]
+		[TestCase("@mixin --a { @apply --b; } @mixin --b { @apply --a; } .x { @apply --a; }", "applies itself")]
+		[TestCase("@mixin --m { opacity: 1; } @apply --m;", "only works inside a style rule")]
+		[TestCase("@keyframes k { from { @apply --m; } } @mixin --m { opacity: 1; }", "only works inside a style rule")]
+		[TestCase("@layer base { @mixin --m { opacity: 1; } }", "must be written at the top level")]
+		[TestCase("@mixin m { opacity: 1; }", "needs a name that starts with '--'")]
+		public void Mixin_MistakesAreNamed(string css, string diagnostic)
+		{
+			var result = CssCompiler.Compile(css, "Assets/Mistakes.css");
+
+			Assert.IsNotNull(result.Sheet);
+			Assert.That(result.Diagnostics, Has.Some.Contains(diagnostic));
+		}
+
+		[Test]
+		public void Mixin_UnusedMixinsCompileToNothing()
+		{
+			var result = CssCompiler.Compile("@mixin --card { .title { opacity: 1; } }", "Assets/Mixins.css");
+
+			CollectionAssert.IsEmpty(result.Diagnostics);
+			CollectionAssert.IsEmpty(result.Classes);
+			Assert.AreEqual(0, result.Sheet.Rules.Length);
+		}
+
+		[Test]
+		public void Mixin_ClassesBelongToTheApplyingSheet()
+		{
+			var result = CssCompiler.Compile("@mixin --card { .title { opacity: 1; } } .card { @apply --card; }", "Assets/Card.css");
+
+			CollectionAssert.AreEqual(new[] { "card", "title" }, result.Classes);
+		}
+
+		[Test]
+		public void Mixin_ComesFromImportedSheets()
+		{
+			var engine = Load(
+				("Assets/UI/Card.css", "@import \"../Theme/Theme.css\"; .card { @apply --fade(0.35); } .tile { @apply --base; }"),
+				("Assets/Theme/Theme.css", "@import \"Base.css\"; @mixin --fade(--amount) { opacity: var(--amount); }"),
+				("Assets/Theme/Base.css", "@mixin --base { opacity: 0.55; }"));
+
+			Assert.AreEqual(0.35f, Opacity(engine, new Node(null, "card")));
+			Assert.AreEqual(0.55f, Opacity(engine, new Node(null, "tile")));
+		}
+
+		[Test]
+		public void Mixin_ImportedSheetsAreDependencies()
+		{
+			var sheets = Sheets(
+				("Assets/Theme/Theme.css", "@import \"Base.css\"; @mixin --fade { opacity: 0.1; }"),
+				("Assets/Theme/Base.css", "@import \"Theme.css\"; @mixin --base { opacity: 0.2; }"));
+
+			var result = CompileWithImports("Assets/Card.css", "@import \"Theme/Theme.css\"; .x { @apply --base; }", sheets);
+
+			CollectionAssert.IsEmpty(result.Diagnostics);
+			CollectionAssert.AreEquivalent(new[] { "Assets/Theme/Theme.css", "Assets/Theme/Base.css" }, result.Dependencies);
+		}
+
+		[Test]
+		public void Mixin_OwnDefinitionOverridesAnImportedOne()
+		{
+			var engine = Load(
+				("Assets/Card.css", "@import \"Theme.css\"; .x { @apply --fade; } @mixin --fade { opacity: 0.2; }"),
+				("Assets/Theme.css", "@mixin --fade { opacity: 0.1; }"));
+
+			Assert.AreEqual(0.2f, Opacity(engine, new Node(null, "x")));
+		}
+
+		[Test]
+		public void Mixin_SheetWithoutApplyReadsNoImports()
+		{
+			var result = CompileWithImports("Assets/Card.css", "@import \"Theme.css\"; .x { opacity: 1; }", Sheets(("Assets/Theme.css", "")));
+
+			CollectionAssert.IsEmpty(result.Dependencies);
+		}
+
+		[Test]
+		public void Mixin_AppliesInsideScope()
+		{
+			var engine = Load(
+				"@mixin --fade(--amount) { opacity: var(--amount); }"
+				+ "@scope (.card) { @apply --fade(0.25); .label { @apply --fade(0.75); } }");
+
+			var card = new Node(null, "card");
+
+			Assert.AreEqual(0.25f, Opacity(engine, card));
+			Assert.AreEqual(0.75f, Opacity(engine, new Node(card, "label")));
+			Assert.AreEqual(-1f, Opacity(engine, new Node(null, "label")));
 		}
 
 		#endregion

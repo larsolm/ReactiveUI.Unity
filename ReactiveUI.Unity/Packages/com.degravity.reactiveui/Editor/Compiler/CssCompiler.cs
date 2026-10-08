@@ -20,6 +20,10 @@ namespace ReactiveUI.Editor
 			public bool Eager = true;
 			public string[] LayerNames = Array.Empty<string>();
 			public CompiledStyleSheet.Font[] Fonts = Array.Empty<CompiledStyleSheet.Font>();
+
+			/// <summary>Every imported sheet read for its mixins.</summary>
+			public string[] Dependencies = Array.Empty<string>();
+
 			public readonly List<string> Diagnostics = new();
 
 			/// <summary>Writes the result into an imported asset.</summary>
@@ -27,9 +31,15 @@ namespace ReactiveUI.Editor
 				asset.Set(path, Data, Classes, UnscopedClasses, Imports, Diagnostics.ToArray(), Eager, LayerNames, Fonts);
 		}
 
-		internal static Result Compile(string css, string path)
+		/// <param name="readSheet">Reads an imported sheet's text by asset path, or returns null.</param>
+		internal static Result Compile(string css, string path, Func<string, string?>? readSheet = null)
 		{
 			var result = new Result();
+			var dependencies = new List<string>();
+
+			css = CssMixins.Expand(css, path, readSheet, result.Diagnostics, dependencies);
+			result.Dependencies = dependencies.ToArray();
+
 			var parsed = CssBuilder.Parse(css, path, result.Diagnostics);
 
 			if (parsed is null)

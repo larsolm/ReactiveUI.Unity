@@ -836,6 +836,35 @@ other rules; a media query or `supports()` on one is named and ignored, since a 
 everywhere cannot be imported conditionally; an import of a file that is not in the project, and an
 import cycle, are each a warning.
 
+### Mixins
+
+`@mixin` and `@apply` (CSS Functions and Mixins) name a block of declarations and nested rules once
+and reuse it in any style rule:
+
+```css
+@mixin --raised(--depth <length>: 2px) {
+    box-shadow: 0 var(--depth) 4px rgba(0, 0, 0, 0.4);
+    &:hover { opacity: 0.9; }
+    @contents { border-radius: 4px; }      /* replaced by the block passed to @apply */
+}
+
+.card   { @apply --raised; }
+.dialog { @apply --raised(8px) { border-radius: 12px; } }
+```
+
+- **Expanded when the sheet compiles.** `@apply` is replaced by the mixin's body, nested in the rule
+  that applies it, so `&`, nested rules and `@media` mean what they would written there by hand.
+- **Parameters** are read with `var(--name)` inside the body and replaced by the argument, the
+  parameter's default, or the `var()` fallback, in that order. An argument containing commas is
+  wrapped in braces: `@apply --shadows({0 1px 2px #000, 0 0 1px #fff})`. Types are not checked.
+- **Visibility.** An `@apply` sees the mixins of its own sheet and of every sheet it imports, directly
+  or through another import. Editing an imported mixin recompiles the sheets that apply it. Where a
+  name is defined more than once, the last definition in cascade order wins.
+
+An unknown mixin, too many arguments, a parameter left without a value, a mixin that applies itself,
+an `@apply` outside a style rule and a `@mixin` that is not at the top level of a sheet are each
+named and ignored.
+
 ### Media queries
 
 `@media` works at the top level and, following CSS Nesting, inside a rule's own block:
@@ -1633,6 +1662,8 @@ Known and deliberate:
   component that owns this sheet", and `@scope` inside a style rule is not supported yet.
 - **`@import` orders; it does not include.** Every sheet is loaded once, globally, so importing a
   sheet twice, or conditionally, changes nothing but order.
+- **`@mixin` ignores cascade layers.** A `@mixin` must be at the top level of a sheet, and the last
+  definition of a name wins whatever layer its sheet is imported into.
 - **`overflow: hidden` clips to the rect, not the corners.** A rounded box still spills its children
   over the rounding, because the clip is a `RectMask2D`.
 - **Corner radii are circular.** An elliptical `border-radius: 20px / 10px` keeps the horizontal

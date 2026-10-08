@@ -280,7 +280,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>The index of the first character that is neither whitespace nor inside a comment.</summary>
-		private static int FirstContentIndex(string text)
+		internal static int FirstContentIndex(string text)
 		{
 			var i = 0;
 
@@ -345,7 +345,7 @@ namespace ReactiveUI
 			return -1;
 		}
 
-		private static int MatchingBrace(string text, int open)
+		internal static int MatchingBrace(string text, int open)
 		{
 			var depth = 0;
 			var i = open;
@@ -380,7 +380,7 @@ namespace ReactiveUI
 			return -1;
 		}
 
-		private static int SkipString(string text, int open)
+		internal static int SkipString(string text, int open)
 		{
 			var quote = text[open];
 
@@ -401,7 +401,7 @@ namespace ReactiveUI
 		}
 
 		/// <summary>Whether the block a prelude opens holds rules rather than declarations.</summary>
-		private static bool HoldsRules(string prelude)
+		internal static bool HoldsRules(string prelude)
 		{
 			var text = prelude.Trim();
 
@@ -417,7 +417,7 @@ namespace ReactiveUI
 				|| IsKeywordAt(text, 0, "@keyframes");
 		}
 
-		private static bool IsKeywordAt(string text, int index, string keyword)
+		internal static bool IsKeywordAt(string text, int index, string keyword)
 		{
 			if (string.Compare(text, index, keyword, 0, keyword.Length, StringComparison.OrdinalIgnoreCase) != 0)
 				return false;
