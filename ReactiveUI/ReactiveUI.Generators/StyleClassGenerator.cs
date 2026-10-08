@@ -164,8 +164,12 @@ namespace ReactiveUI.Generators
 			var opened = file.OpenType(type);
 
 			file.Line($"/// <summary>Class names declared in <c>{Path.GetFileName(sheet.Sheet)}</c>.</summary>");
-			file.Open($"public static class {ClassNames.StylesClass}");
-			AppendMembers(file, members, facts);
+
+			if (facts.HasNoAutoStaticsCleanup)
+				file.Line($"[global::{NoAutoStaticsCleanup}]");
+
+			file.Open($"private static class {ClassNames.StylesClass}");
+			AppendMembers(file, members, string.Empty);
 			file.Close();
 
 			file.Close(opened);
@@ -195,7 +199,7 @@ namespace ReactiveUI.Generators
 
 			file.Line("/// <summary>Class names shared across the UI.</summary>");
 			file.Open($"public static partial class {ClassNames.GlobalClass}");
-			AppendMembers(file, members, facts);
+			AppendMembers(file, members, facts.HasNoAutoStaticsCleanup ? $"[global::{NoAutoStaticsCleanup}] " : string.Empty);
 			file.Close();
 
 			file.Close(opened);
@@ -242,14 +246,14 @@ namespace ReactiveUI.Generators
 		}
 
 		/// <remarks>
-		/// The fields are marked to survive Unity's static cleanup when entering Play Mode without a
-		/// domain reload: a <c>ClassName</c> is an index into a process-wide intern table that is kept
-		/// too, and a field reset to its default would point at the wrong class.
+		/// The constants must survive Unity's static cleanup when entering Play Mode without a domain
+		/// reload: a <c>ClassName</c> is an index into a process-wide intern table that is kept too, and
+		/// a field reset to its default would point at the wrong class. A <c>Styles</c> table is marked
+		/// once on the class; the shared <c>Ui</c> table marks each field, because it is a partial that
+		/// spans every global sheet and may share a type with hand-written statics that should reset.
 		/// </remarks>
-		private static void AppendMembers(SourceBuilder file, List<(string Member, string Css)> members, CompilationFacts facts)
+		private static void AppendMembers(SourceBuilder file, List<(string Member, string Css)> members, string attribute)
 		{
-			var attribute = facts.HasNoAutoStaticsCleanup ? $"[global::{NoAutoStaticsCleanup}] " : string.Empty;
-
 			foreach (var (member, css) in members)
 			{
 				var literal = SymbolDisplay.FormatLiteral(css, quote: true);

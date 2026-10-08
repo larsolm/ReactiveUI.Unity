@@ -31,6 +31,7 @@ namespace ReactiveUI
 		internal ClassSet _classes;
 		internal ulong _state;
 		internal ulong _conditionMask;
+		private bool _pointerInside;
 
 		// The inputs _conditionMask was derived from. Re-deriving it re-runs the selector matcher over
 		// every state-bearing rule on this node, walking the ancestor chain for each — and during an
@@ -64,6 +65,15 @@ namespace ReactiveUI
 		internal float _motionRotation;
 		internal ElementRef? _ref;
 		internal HostInstance? _previousHostSibling;
+
+		/// <summary>This node's 0-based position among its parent's host children.</summary>
+		internal int _childIndex;
+
+		/// <summary>How many host children this node's parent has, this node included.</summary>
+		internal int _siblingCount = 1;
+
+		/// <summary>How many host children this node has.</summary>
+		internal int _hostChildCount;
 
 		/// <summary>
 		/// The ordered host children this node's transform and Yoga list were last placed against.
@@ -247,12 +257,49 @@ namespace ReactiveUI
 
 		ulong IMatchTarget.MatchState => _state;
 
+		int IMatchTarget.MatchChildIndex => _childIndex;
+
+		int IMatchTarget.MatchSiblingCount => _siblingCount;
+
+		bool IMatchTarget.MatchIsEmpty => _hostChildCount == 0 && !HasContent;
+
+		/// <summary>Whether this node carries content of its own, which makes it not <c>:empty</c>.</summary>
+		internal virtual bool HasContent => false;
+
+		/// <summary>
+		/// Makes the next style applied this node's first paint, so it snaps rather than transitioning
+		/// from whatever was applied before.
+		/// </summary>
+		internal virtual void SnapNextStyle()
+		{
+			_hostChannels?.Reset();
+		}
+
 		/// <summary>
 		/// Gives this node focus.
 		/// </summary>
 		public void Focus()
 		{
 			_focus?.Focus(this);
+		}
+
+		/// <summary>
+		/// Records the pointer entering or leaving this node.
+		/// </summary>
+		/// <remarks>
+		/// Kept apart from <c>:hover</c>, which only shows while the modality is
+		/// <see cref="InputModality.Pointer"/>: navigating hides it, and the pointer resting where it was
+		/// brings it back when the mouse moves again, without the event system re-sending an enter.
+		/// </remarks>
+		internal void SetPointerInside(bool inside)
+		{
+			_pointerInside = inside;
+			RefreshHover();
+		}
+
+		internal void RefreshHover()
+		{
+			SetState(UiStates.s_hover, _pointerInside && InputModalityTracker.Current == InputModality.Pointer);
 		}
 
 		internal void SetState(StateBit bit, bool on)
@@ -562,7 +609,10 @@ namespace ReactiveUI
 
 			// `visibility` folds into the same alpha as `opacity` — it is the one that also has to
 			// stop the node eating clicks, since a hidden node still occupies its layout box.
-			var hidden = style.Keyword(PropId.Visibility, 0) != 0;
+			// `display: none` hides the same way: Yoga only drops the node from layout, and its
+			// graphics would otherwise still draw at whatever rect they were last given.
+			var hidden = style.Keyword(PropId.Visibility, 0) != 0
+				|| style.Keyword(PropId.Display, (int)YogaDisplay.Flex) == (int)YogaDisplay.None;
 
 			if (hidden != _hidden)
 			{
@@ -730,6 +780,7 @@ namespace ReactiveUI
 			RefreshName();
 
 			_state = 0UL;
+			_pointerInside = false;
 			_conditionMask = 0UL;
 			_dependsOnState = false;
 			_inlineEntries?.Clear();
@@ -749,6 +800,9 @@ namespace ReactiveUI
 			_varSetId = 0;
 			_matchDirty = true;
 			_previousHostSibling = null;
+			_childIndex = 0;
+			_siblingCount = 1;
+			_hostChildCount = 0;
 			_syncedHosts?.Clear();
 			_placedUnder = null;
 			_layoutPosition = Vector2.zero;
@@ -1081,6 +1135,12 @@ namespace ReactiveUI
 		{
 			base.StopMotion();
 			_channels?.Stop();
+		}
+
+		internal override void SnapNextStyle()
+		{
+			base.SnapNextStyle();
+			_channels?.Reset();
 		}
 
 		private RoundedRectGraphic EnsureGraphic()

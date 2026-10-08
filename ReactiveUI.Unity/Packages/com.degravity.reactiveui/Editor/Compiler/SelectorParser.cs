@@ -256,6 +256,20 @@ namespace ReactiveUI
 							continue;
 						}
 
+						if (index < selector.Length && selector[index] == '(' && TryNthKind(name, out var nthKind))
+						{
+							if (!TryReadNthArgument(selector, ref index, name, out var a, out var b))
+								return false;
+
+							classes++;
+							_simples.Add(new SimpleSelector(nthKind, SimpleSelector.PackNth(a, b)));
+
+							continue;
+						}
+
+						if ((index >= selector.Length || selector[index] != '(') && TryAddStructural(name, ref classes))
+							continue;
+
 						// Functional pseudo-classes are parsed far enough to reject them clearly.
 						if (index < selector.Length && selector[index] == '(')
 						{
@@ -333,6 +347,231 @@ namespace ReactiveUI
 			classes++;
 			stateMask |= UiStates.s_root.Mask;
 			_simples.Add(new SimpleSelector(SelectorKind.PseudoClass, UiStates.s_root._index));
+		}
+
+		/// <summary>
+		/// Adds <c>:first-child</c>, <c>:last-child</c>, <c>:only-child</c> or <c>:empty</c>, each counted
+		/// as one pseudo-class.
+		/// </summary>
+		private bool TryAddStructural(string name, ref int classes)
+		{
+			var first = SimpleSelector.PackNth(0, 1);
+
+			if (name.Equals("first-child", StringComparison.OrdinalIgnoreCase))
+			{
+				_simples.Add(new SimpleSelector(SelectorKind.NthChild, first));
+			}
+			else if (name.Equals("last-child", StringComparison.OrdinalIgnoreCase))
+			{
+				_simples.Add(new SimpleSelector(SelectorKind.NthLastChild, first));
+			}
+			else if (name.Equals("only-child", StringComparison.OrdinalIgnoreCase))
+			{
+				_simples.Add(new SimpleSelector(SelectorKind.NthChild, first));
+				_simples.Add(new SimpleSelector(SelectorKind.NthLastChild, first));
+			}
+			else if (name.Equals("empty", StringComparison.OrdinalIgnoreCase))
+			{
+				_simples.Add(new SimpleSelector(SelectorKind.Empty, 0));
+			}
+			else
+			{
+				return false;
+			}
+
+			classes++;
+
+			return true;
+		}
+
+		private static bool TryNthKind(string name, out SelectorKind kind)
+		{
+			if (name.Equals("nth-child", StringComparison.OrdinalIgnoreCase))
+			{
+				kind = SelectorKind.NthChild;
+				return true;
+			}
+
+			if (name.Equals("nth-last-child", StringComparison.OrdinalIgnoreCase))
+			{
+				kind = SelectorKind.NthLastChild;
+				return true;
+			}
+
+			kind = default;
+			return false;
+		}
+
+		/// <summary>
+		/// Reads the parenthesised <c>An+B</c> of an <c>:nth-child</c> or <c>:nth-last-child</c> at
+		/// <paramref name="index"/>, reporting anything it cannot read.
+		/// </summary>
+		private bool TryReadNthArgument(string selector, ref int index, string name, out int a, out int b)
+		{
+			a = 0;
+			b = 0;
+
+			var open = index;
+			var close = -1;
+			var depth = 0;
+
+			for (var i = open; i < selector.Length; i++)
+			{
+				if (selector[i] == '(')
+				{
+					depth++;
+				}
+				else if (selector[i] == ')' && --depth == 0)
+				{
+					close = i;
+					break;
+				}
+			}
+
+			if (close < 0)
+			{
+				Report($"'{selector}': ':{name}(' is missing its ')'.");
+				return false;
+			}
+
+			index = close + 1;
+
+			var argument = selector.Substring(open + 1, close - open - 1).Trim();
+
+			if (IndexOfOf(argument) >= 0)
+			{
+				Report($"'{selector}': ':{name}(… of <selector>)' is not supported.");
+				return false;
+			}
+
+			if (!TryParseAnPlusB(argument, out a, out b))
+			{
+				Report($"'{selector}': ':{name}({argument})' is not a valid An+B.");
+				return false;
+			}
+
+			if (Math.Abs(a) > SimpleSelector.MaxNthCoefficient || Math.Abs(b) > SimpleSelector.MaxNthCoefficient)
+			{
+				Report($"'{selector}': ':{name}({argument})' is out of range; A and B must be within ±{SimpleSelector.MaxNthCoefficient}.");
+				return false;
+			}
+
+			return true;
+		}
+
+		/// <summary>Where a standalone <c>of</c> keyword starts in an <c>:nth-*</c> argument, or -1.</summary>
+		private static int IndexOfOf(string argument)
+		{
+			for (var i = 0; i + 1 < argument.Length; i++)
+			{
+				if ((argument[i] == 'o' || argument[i] == 'O')
+					&& (argument[i + 1] == 'f' || argument[i + 1] == 'F')
+					&& (i == 0 || char.IsWhiteSpace(argument[i - 1]))
+					&& (i + 2 >= argument.Length || char.IsWhiteSpace(argument[i + 2])))
+				{
+					return i;
+				}
+			}
+
+			return -1;
+		}
+
+		/// <summary>
+		/// Parses the CSS <c>&lt;an+b&gt;</c> microsyntax: <c>odd</c>, <c>even</c>, an integer, or
+		/// <c>An+B</c> with A and B each optional, and whitespace allowed around the sign of B.
+		/// </summary>
+		internal static bool TryParseAnPlusB(string text, out int a, out int b)
+		{
+			a = 0;
+			b = 0;
+
+			var s = text.Trim();
+
+			if (s.Equals("odd", StringComparison.OrdinalIgnoreCase))
+			{
+				a = 2;
+				b = 1;
+				return true;
+			}
+
+			if (s.Equals("even", StringComparison.OrdinalIgnoreCase))
+			{
+				a = 2;
+				return true;
+			}
+
+			var n = s.IndexOfAny(new[] { 'n', 'N' });
+
+			if (n < 0)
+				return TryParseInteger(s, allowSign: true, out b);
+
+			// A: everything before the n — empty, a sign, or a signed integer.
+			var head = s.Substring(0, n);
+
+			switch (head)
+			{
+				case "":
+				case "+":
+					a = 1;
+					break;
+
+				case "-":
+					a = -1;
+					break;
+
+				default:
+					if (!TryParseInteger(head, allowSign: true, out a))
+						return false;
+
+					break;
+			}
+
+			// B: nothing, or a sign followed by an unsigned integer, whitespace allowed either side.
+			var tail = s.Substring(n + 1).Trim();
+
+			if (tail.Length == 0)
+				return true;
+
+			if (tail[0] != '+' && tail[0] != '-')
+				return false;
+
+			var sign = tail[0] == '-' ? -1 : 1;
+
+			if (!TryParseInteger(tail.Substring(1).TrimStart(), allowSign: false, out b))
+				return false;
+
+			b *= sign;
+
+			return true;
+		}
+
+		private static bool TryParseInteger(string text, bool allowSign, out int value)
+		{
+			value = 0;
+
+			if (text.Length == 0)
+				return false;
+
+			var start = 0;
+
+			if (text[0] == '+' || text[0] == '-')
+			{
+				if (!allowSign)
+					return false;
+
+				start = 1;
+			}
+
+			if (start == text.Length)
+				return false;
+
+			for (var i = start; i < text.Length; i++)
+			{
+				if (text[i] < '0' || text[i] > '9')
+					return false;
+			}
+
+			return int.TryParse(text, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out value);
 		}
 
 		/// <summary>

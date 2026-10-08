@@ -68,8 +68,19 @@ namespace ReactiveUI
 					continue;
 
 				_dispatched.Add(binding._action);
+				NoteModality(binding._action);
 				binding._listener();
 			}
+		}
+
+		/// <remarks>
+		/// Before the listener runs, so whatever it mounts — a new tab under a resting pointer — is
+		/// styled for navigation rather than lighting up as hovered.
+		/// </remarks>
+		private static void NoteModality(InputAction action)
+		{
+			if (action.activeControl?.device is { } and not Pointer)
+				InputModalityTracker.NoteNavigation();
 		}
 
 		internal void Clear()

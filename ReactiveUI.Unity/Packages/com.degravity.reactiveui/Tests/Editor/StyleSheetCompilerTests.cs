@@ -26,10 +26,23 @@ namespace ReactiveUI.Tests
 		/// <summary>The host type name the node answers to, or null for none.</summary>
 		public string Type { get; set; }
 
+		/// <summary>The node's 0-based position among its siblings.</summary>
+		public int Index { get; set; }
+
+		/// <summary>How many siblings the node has, itself included.</summary>
+		public int Count { get; set; } = 1;
+
+		public bool Empty { get; set; } = true;
+
+		public Node Previous { get; set; }
+
 		public IMatchTarget MatchParent => _parent;
-		public IMatchTarget MatchPreviousSibling => null;
+		public IMatchTarget MatchPreviousSibling => Previous;
 		public ClassSet MatchClasses => _classes;
 		public ulong MatchState => State;
+		public int MatchChildIndex => Index;
+		public int MatchSiblingCount => Count;
+		public bool MatchIsEmpty => Empty;
 		public bool MatchesType(int typeId) => Type is not null && ClassTable.Intern(Type) == typeId;
 	}
 
@@ -127,6 +140,7 @@ namespace ReactiveUI.Tests
 @media (max-width: 40rem) and (orientation: portrait), (input-device: gamepad) { .card { width: 100%; } }
 @keyframes pulse { from { opacity: 0; } 50% { opacity: 1; animation-timing-function: linear; } to { opacity: 0.5; } }
 @layer theme { .card { opacity: 0.9; } }
+.row:nth-child(2n+1), .row:nth-last-child(-n+3):empty, .row:only-child { opacity: 0.4; }
 @scope (.card) to (.slot) { :scope > .label { opacity: 0.1; } & .icon { opacity: 0.2; } .label { opacity: 0.3; } }
 @mixin --raised(--depth: 2px) { box-shadow: 0 var(--depth) 4px var(--shade); &:hover { opacity: 0.95; } }
 .panel { @apply --raised(6px); }
@@ -261,6 +275,173 @@ namespace ReactiveUI.Tests
 			MediaQueryCompiler.CompileCondition(query, diagnostics);
 
 			CollectionAssert.IsNotEmpty(diagnostics, query);
+		}
+
+		#endregion
+
+		#region Structural pseudo-classes
+
+		private static Node At(int index, int count, params string[] classes) => At(null, index, count, classes);
+
+		private static Node At(Node parent, int index, int count, params string[] classes) =>
+			new(parent, classes) { Index = index, Count = count };
+
+		[TestCase("odd", 2, 1)]
+		[TestCase("EVEN", 2, 0)]
+		[TestCase("5", 0, 5)]
+		[TestCase("+5", 0, 5)]
+		[TestCase("-2", 0, -2)]
+		[TestCase("n", 1, 0)]
+		[TestCase("+n", 1, 0)]
+		[TestCase("-n", -1, 0)]
+		[TestCase("-n+3", -1, 3)]
+		[TestCase("2n+1", 2, 1)]
+		[TestCase("2N-1", 2, -1)]
+		[TestCase("2n + 1", 2, 1)]
+		[TestCase(" 3n - 2 ", 3, -2)]
+		[TestCase("-1n+3", -1, 3)]
+		[TestCase("0n+5", 0, 5)]
+		public void AnPlusB_Parses(string text, int a, int b)
+		{
+			Assert.IsTrue(SelectorParser.TryParseAnPlusB(text, out var parsedA, out var parsedB), text);
+			Assert.AreEqual((a, b), (parsedA, parsedB), text);
+		}
+
+		[TestCase("")]
+		[TestCase("n+")]
+		[TestCase("2n+-1")]
+		[TestCase("2 n")]
+		[TestCase("2n1")]
+		[TestCase("x")]
+		[TestCase("1.5")]
+		public void AnPlusB_RejectsMalformed(string text)
+		{
+			Assert.IsFalse(SelectorParser.TryParseAnPlusB(text, out _, out _), text);
+		}
+
+		[TestCase(".a:nth-child(2n of .b) { opacity: 0.1; }", "of <selector>")]
+		[TestCase(".a:nth-child(foo) { opacity: 0.1; }", "not a valid An+B")]
+		[TestCase(".a:nth-child(40000) { opacity: 0.1; }", "out of range")]
+		[TestCase(".a:nth-of-type(2) { opacity: 0.1; }", "not supported")]
+		[TestCase(".a:first-of-type { opacity: 0.1; }", "not a pseudo-class")]
+		public void Structural_UnsupportedFormsAreDiagnosed(string css, string expected)
+		{
+			var result = CssCompiler.Compile(css, "Assets/Test.css");
+
+			Assert.IsTrue(result.Diagnostics.Any(d => d.Contains(expected)), string.Join("\n", result.Diagnostics));
+		}
+
+		[Test]
+		public void Structural_FirstLastOnly()
+		{
+			var engine = Load(".i:first-child { opacity: 0.1; } .i:last-child { opacity: 0.2; } .i:only-child { opacity: 0.3; }");
+
+			Assert.AreEqual(0.1f, Opacity(engine, At(0, 3, "i")));
+			Assert.AreEqual(-1f, Opacity(engine, At(1, 3, "i")));
+			Assert.AreEqual(0.2f, Opacity(engine, At(2, 3, "i")));
+			Assert.AreEqual(0.3f, Opacity(engine, At(0, 1, "i")));
+		}
+
+		[Test]
+		public void Structural_NthChild()
+		{
+			var odd = Load(".i:nth-child(odd) { opacity: 0.1; }");
+			var even = Load(".i:nth-child(even) { opacity: 0.1; }");
+			var thirds = Load(".i:nth-child(3n+1) { opacity: 0.1; }");
+			var firstThree = Load(".i:nth-child(-n+3) { opacity: 0.1; }");
+			var exact = Load(".i:nth-child(2) { opacity: 0.1; }");
+
+			for (var index = 0; index < 8; index++)
+			{
+				var position = index + 1;
+				var node = At(index, 8, "i");
+
+				Assert.AreEqual(position % 2 == 1 ? 0.1f : -1f, Opacity(odd, node), $"odd, position {position}");
+				Assert.AreEqual(position % 2 == 0 ? 0.1f : -1f, Opacity(even, node), $"even, position {position}");
+				Assert.AreEqual(position % 3 == 1 ? 0.1f : -1f, Opacity(thirds, node), $"3n+1, position {position}");
+				Assert.AreEqual(position <= 3 ? 0.1f : -1f, Opacity(firstThree, node), $"-n+3, position {position}");
+				Assert.AreEqual(position == 2 ? 0.1f : -1f, Opacity(exact, node), $"2, position {position}");
+			}
+		}
+
+		[Test]
+		public void Structural_NthLastChild()
+		{
+			var engine = Load(".i:nth-last-child(2) { opacity: 0.1; } .i:nth-last-child(-n+1) { opacity: 0.2; }");
+
+			Assert.AreEqual(-1f, Opacity(engine, At(0, 4, "i")));
+			Assert.AreEqual(0.1f, Opacity(engine, At(2, 4, "i")));
+			Assert.AreEqual(0.2f, Opacity(engine, At(3, 4, "i")));
+		}
+
+		[Test]
+		public void Structural_Empty()
+		{
+			var engine = Load(".i:empty { opacity: 0.1; }");
+
+			Assert.AreEqual(0.1f, Opacity(engine, new Node(null, "i") { Empty = true }));
+			Assert.AreEqual(-1f, Opacity(engine, new Node(null, "i") { Empty = false }));
+		}
+
+		[Test]
+		public void Structural_CountsAsOnePseudoClass()
+		{
+			// `.i:only-child` is one class and one pseudo-class, so it ties with `.i.j` and document order
+			// decides.
+			var engine = Load(".i:only-child { opacity: 0.1; } .i.j { opacity: 0.2; }");
+
+			Assert.AreEqual(0.2f, Opacity(engine, At(0, 1, "i", "j")));
+
+			var reversed = Load(".i.j { opacity: 0.2; } .i:only-child { opacity: 0.1; }");
+
+			Assert.AreEqual(0.1f, Opacity(reversed, At(0, 1, "i", "j")));
+		}
+
+		[Test]
+		public void Structural_OnAnAncestor()
+		{
+			var engine = Load(".row:first-child .label { opacity: 0.1; }");
+
+			Assert.AreEqual(0.1f, Opacity(engine, new Node(At(0, 3, "row"), "label")));
+			Assert.AreEqual(-1f, Opacity(engine, new Node(At(1, 3, "row"), "label")));
+			Assert.IsTrue(engine.UsesStructureInAncestors);
+		}
+
+		[Test]
+		public void Structural_OnTheKeyCompoundIsNotAnAncestorTest()
+		{
+			var engine = Load(".list > .row:last-child { opacity: 0.1; }");
+
+			// Sheets activate when a node first carries one of their classes.
+			Assert.AreEqual(0.1f, Opacity(engine, At(new Node(null, "list"), 2, 3, "row")));
+			Assert.IsFalse(engine.UsesStructureInAncestors);
+			Assert.IsTrue(engine.UsesPositionFromEnd);
+			Assert.IsFalse(engine.UsesPositionFromStart);
+		}
+
+		[Test]
+		public void Structural_Nested()
+		{
+			var engine = Load(".row { &:nth-child(2n) { opacity: 0.1; } &:last-child { opacity: 0.2; } }");
+
+			Assert.AreEqual(-1f, Opacity(engine, At(0, 5, "row")));
+			Assert.AreEqual(0.1f, Opacity(engine, At(1, 5, "row")));
+			Assert.AreEqual(0.2f, Opacity(engine, At(4, 5, "row")));
+		}
+
+		[Test]
+		public void Structural_WithSiblingCombinator()
+		{
+			var engine = Load(".i:first-child + .i { opacity: 0.1; }");
+
+			var first = At(0, 3, "i");
+			var second = At(1, 3, "i");
+			second.Previous = first;
+			var third = At(2, 3, "i");
+			third.Previous = second;
+
+			Assert.AreEqual(0.1f, Opacity(engine, second));
+			Assert.AreEqual(-1f, Opacity(engine, third));
 		}
 
 		#endregion

@@ -583,31 +583,53 @@ namespace ReactiveUI
 				return;
 
 			var content = parent.ContentRect;
+			var count = children.Count;
 
-			for (var i = 0; i < children.Count; i++)
+			if (parent._hostChildCount != count)
+			{
+				var wasEmpty = parent._hostChildCount == 0;
+
+				parent._hostChildCount = count;
+
+				if (_engine.UsesEmpty && wasEmpty != (count == 0))
+					RematchStructure(parent);
+			}
+
+			var siblingRematched = false;
+
+			for (var i = 0; i < count; i++)
 			{
 				var child = children[i];
 
 				// Recorded here because this is the one place the ordered host siblings are known.
-				// Matching has already run by now, so a changed link means any sibling selector on
-				// this node was evaluated against the wrong neighbour and has to be redone.
+				// Matching has already run by now, so a changed link or position means any sibling or
+				// structural selector on this node was evaluated against the wrong answer.
 				var previous = i > 0 ? children[i - 1] : null;
+				var rematch = false;
 
 				if (!ReferenceEquals(child._previousHostSibling, previous))
 				{
 					child._previousHostSibling = previous;
+					rematch = _engine.UsesSiblingCombinators;
+				}
 
-					if (_engine.UsesSiblingCombinators)
-					{
-						child._ruleSetId = _engine.Match(child);
-						child._dependsOnState = _engine.DependsOnState(child._ruleSetId);
+				if (child._childIndex != i || child._siblingCount != count)
+				{
+					rematch |= (_engine.UsesPositionFromStart && child._childIndex != i)
+						|| (_engine.UsesPositionFromEnd && child._siblingCount - child._childIndex != count - i);
 
-						// `.a:hover + .b` reads the neighbour's state, so a new neighbour can change
-						// this node's mask with no state anywhere having moved.
-						child._conditionGeneration = -1;
+					child._childIndex = i;
+					child._siblingCount = count;
+				}
 
-						Restyle(child);
-					}
+				// A sibling combinator reads the neighbours' positions too, so once one sibling has
+				// re-matched, every later one may answer differently.
+				rematch |= siblingRematched && _engine.UsesSiblingCombinators;
+
+				if (rematch)
+				{
+					RematchStructure(child);
+					siblingRematched = true;
 				}
 
 				if (child._rectTransform.parent != content)
@@ -628,10 +650,46 @@ namespace ReactiveUI
 			}
 
 			// Trim any Yoga children left over from a shrunk list.
-			while (parent._yoga.Count > children.Count)
+			while (parent._yoga.Count > count)
 				parent._yoga.RemoveAt(parent._yoga.Count - 1);
 
 			RememberPlacement(parent, children);
+		}
+
+		/// <summary>
+		/// Re-matches a node whose neighbours, position or emptiness moved, and restyles it and, where
+		/// the sheets need it, its subtree.
+		/// </summary>
+		private void RematchStructure(HostInstance host)
+		{
+			var previousVarSet = host._varSetId;
+			var previousInherited = host._inheritedId;
+
+			host._ruleSetId = _engine.Match(host);
+			host._dependsOnState = _engine.DependsOnState(host._ruleSetId);
+
+			// `.a:hover + .b` reads the neighbour's state, so a new neighbour can change this node's
+			// mask with no state anywhere having moved.
+			host._conditionGeneration = -1;
+
+			if (_engine.NeedsPointer(host))
+				host.EnablePointer();
+
+			// A node not yet placed was matched against a guessed position and has not been seen, so
+			// the corrected style is its first paint rather than a transition away from the guess.
+			if (host._placedUnder is null)
+				host.SnapNextStyle();
+
+			ResolveCachedVarScope(host, host._nearestHost?._varSetId ?? 0);
+			Restyle(host);
+
+			var rematchDescendants = _engine.UsesStructureInAncestors;
+
+			if (host._children is { Count: > 0 }
+				&& (rematchDescendants || host._varSetId != previousVarSet || host._inheritedId != previousInherited))
+			{
+				RefreshDescendants(host, rematchDescendants);
+			}
 		}
 
 		private static void CollectHosts(List<Instance>? instances, List<HostInstance> into)

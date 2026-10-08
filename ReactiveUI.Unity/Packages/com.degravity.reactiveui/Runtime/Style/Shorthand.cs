@@ -109,6 +109,18 @@ namespace ReactiveUI
 				case "flex":
 					return Flex(value, into, diagnostics, sourceName);
 
+				case "scrollbar-color":
+				{
+					var parts = Split(value);
+					if (parts.Count != 2 || !ColorOrVar(parts[0], out var thumb) || !ColorOrVar(parts[1], out var track))
+						return Fail(diagnostics, sourceName, name, value);
+
+					into.Add(new Declaration(PropId.ScrollbarThumbColor, thumb));
+					into.Add(new Declaration(PropId.ScrollbarTrackColor, track));
+
+					return true;
+				}
+
 				case "inset":
 					return Box(value, into, PropId.Top, PropId.Right, PropId.Bottom, PropId.Left, diagnostics, sourceName, name);
 

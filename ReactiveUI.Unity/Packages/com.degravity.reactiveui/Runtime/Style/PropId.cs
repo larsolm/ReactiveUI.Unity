@@ -104,6 +104,11 @@
 		AnimationDirection,
 		AnimationFillMode,
 		AnimationPlayState,
+
+		// ---- Scroll ----
+		ScrollbarWidth,
+		ScrollbarThumbColor,
+		ScrollbarTrackColor,
 	}
 
 	/// <summary>

@@ -121,7 +121,7 @@ namespace ReactiveUI
 			if (_host is null || _host._disabled)
 				return;
 
-			_host.SetState(UiStates.s_hover, true);
+			_host.SetPointerInside(true);
 			_host._onHoverEnter?.Invoke();
 		}
 
@@ -130,7 +130,7 @@ namespace ReactiveUI
 			if (_host is null || _host._disabled)
 				return;
 
-			_host.SetState(UiStates.s_hover, false);
+			_host.SetPointerInside(false);
 			_host.SetState(UiStates.s_active, false);
 			_host._onHoverExit?.Invoke();
 		}

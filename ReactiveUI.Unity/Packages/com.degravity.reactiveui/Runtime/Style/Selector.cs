@@ -14,6 +14,18 @@ namespace ReactiveUI
 		/// <see cref="SimpleSelector.Value"/> is unused.
 		/// </summary>
 		ScopeRoot,
+
+		/// <summary>
+		/// <c>:nth-child(An+B)</c>, and <c>:first-child</c> as <c>0n+1</c>. <see cref="SimpleSelector.Value"/>
+		/// packs A and B; see <see cref="SimpleSelector.PackNth"/>.
+		/// </summary>
+		NthChild,
+
+		/// <summary><c>:nth-last-child(An+B)</c>, and <c>:last-child</c> as <c>0n+1</c>.</summary>
+		NthLastChild,
+
+		/// <summary><c>:empty</c>. <see cref="SimpleSelector.Value"/> is unused.</summary>
+		Empty,
 	}
 
 	internal enum Combinator : byte
@@ -35,6 +47,27 @@ namespace ReactiveUI
 		{
 			Kind = kind;
 			Value = value;
+		}
+
+		/// <summary>The largest magnitude an <c>An+B</c> coefficient may have.</summary>
+		public const int MaxNthCoefficient = short.MaxValue;
+
+		/// <summary>Packs an <c>An+B</c> pair into a value: A in the high 16 bits, B in the low 16.</summary>
+		public static int PackNth(int a, int b) => (a << 16) | (ushort)(short)b;
+
+		public static int NthA(int value) => value >> 16;
+
+		public static int NthB(int value) => (short)(value & 0xFFFF);
+
+		/// <summary>Whether a 1-based position is one of <c>An+B</c>'s, for some n ≥ 0.</summary>
+		public static bool NthMatches(int a, int b, int position)
+		{
+			if (a == 0)
+				return position == b;
+
+			var offset = position - b;
+
+			return offset / a >= 0 && offset % a == 0;
 		}
 	}
 

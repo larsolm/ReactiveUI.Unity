@@ -11,6 +11,15 @@ namespace ReactiveUI
 		ClassSet MatchClasses { get; }
 		ulong MatchState { get; }
 
+		/// <summary>The node's 0-based position among its parent's host children.</summary>
+		int MatchChildIndex { get; }
+
+		/// <summary>How many host children the node's parent has, the node included.</summary>
+		int MatchSiblingCount { get; }
+
+		/// <summary>Whether the node has no host children and no content of its own.</summary>
+		bool MatchIsEmpty { get; }
+
 		bool MatchesType(int typeId);
 	}
 
@@ -58,6 +67,22 @@ namespace ReactiveUI
 		}
 
 		internal bool UsesSiblingCombinators { get; private set; }
+
+		/// <summary>Whether any active sheet uses <c>:nth-child</c> or <c>:first-child</c>, which read a node's index.</summary>
+		internal bool UsesPositionFromStart { get; private set; }
+
+		/// <summary>Whether any active sheet uses <c>:nth-last-child</c> or <c>:last-child</c>, which read a node's index from the end.</summary>
+		internal bool UsesPositionFromEnd { get; private set; }
+
+		/// <summary>Whether any active sheet uses <c>:empty</c>.</summary>
+		internal bool UsesEmpty { get; private set; }
+
+		/// <summary>
+		/// Whether any active sheet tests position, emptiness or a sibling on a compound other than the
+		/// one a rule styles, as in <c>li:first-child .label</c>. A node whose position moves then
+		/// changes what its descendants match.
+		/// </summary>
+		internal bool UsesStructureInAncestors { get; private set; }
 
 		/// <summary>The source's sheets by slot; null for a slot not yet active in this engine.</summary>
 		private readonly List<StyleSheet?> _sheets = new();
@@ -154,6 +179,10 @@ namespace ReactiveUI
 			_pointerByType.Clear();
 			_pointerUniversal.Clear();
 			UsesSiblingCombinators = false;
+			UsesPositionFromStart = false;
+			UsesPositionFromEnd = false;
+			UsesEmpty = false;
+			UsesStructureInAncestors = false;
 
 			var count = source?.Count ?? 0;
 
@@ -218,8 +247,7 @@ namespace ReactiveUI
 			for (var i = 0; i < sheet.Keyframes.Length; i++)
 				_clips[sheet.Keyframes[i].NameId] = sheet.Keyframes[i];
 
-			for (var i = 0; i < sheet.Compounds.Length && !UsesSiblingCombinators; i++)
-				UsesSiblingCombinators = sheet.Compounds[i].ToNext is Combinator.NextSibling or Combinator.SubsequentSibling;
+			NoteStructure(sheet);
 
 			var flags = new bool[sheet.MediaQueries.Length];
 
@@ -242,6 +270,56 @@ namespace ReactiveUI
 				AddToIndex(sheet, sheet.Compounds[compound], (slot << 20) | compound, _pointerByClass, _pointerByType, _pointerUniversal);
 
 			return true;
+		}
+
+		/// <summary>Records which structural tests a newly activated sheet makes.</summary>
+		private void NoteStructure(StyleSheet sheet)
+		{
+			for (var s = 0; s < sheet.Selectors.Length; s++)
+			{
+				var selector = sheet.Selectors[s];
+				var last = selector.CompoundStart + selector.CompoundCount - 1;
+
+				for (var c = selector.CompoundStart; c <= last; c++)
+				{
+					var compound = sheet.Compounds[c];
+					var structural = false;
+
+					if (compound.ToNext is Combinator.NextSibling or Combinator.SubsequentSibling)
+					{
+						UsesSiblingCombinators = true;
+
+						// The compound to the right of a sibling combinator is the one whose neighbour is
+						// read, so the test sits on an ancestor whenever that compound is not the key.
+						if (c + 1 < last)
+							UsesStructureInAncestors = true;
+					}
+
+					for (var i = compound.Start; i < compound.Start + compound.Count; i++)
+					{
+						switch (sheet.Simples[i].Kind)
+						{
+							case SelectorKind.NthChild:
+								UsesPositionFromStart = true;
+								structural = true;
+								break;
+
+							case SelectorKind.NthLastChild:
+								UsesPositionFromEnd = true;
+								structural = true;
+								break;
+
+							case SelectorKind.Empty:
+								UsesEmpty = true;
+								structural = true;
+								break;
+						}
+					}
+
+					if (structural && c != last)
+						UsesStructureInAncestors = true;
+				}
+			}
 		}
 
 		/// <summary>
@@ -711,6 +789,24 @@ namespace ReactiveUI
 
 					case SelectorKind.ScopeRoot:
 						if (scopeRoot is not null && !ReferenceEquals(target, scopeRoot))
+							return false;
+
+						break;
+
+					case SelectorKind.NthChild:
+						if (!SimpleSelector.NthMatches(SimpleSelector.NthA(simple.Value), SimpleSelector.NthB(simple.Value), target.MatchChildIndex + 1))
+							return false;
+
+						break;
+
+					case SelectorKind.NthLastChild:
+						if (!SimpleSelector.NthMatches(SimpleSelector.NthA(simple.Value), SimpleSelector.NthB(simple.Value), target.MatchSiblingCount - target.MatchChildIndex))
+							return false;
+
+						break;
+
+					case SelectorKind.Empty:
+						if (!target.MatchIsEmpty)
 							return false;
 
 						break;

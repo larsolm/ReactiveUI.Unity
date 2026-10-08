@@ -627,16 +627,16 @@ Classes are symbols, not strings. Every class selector in a stylesheet generates
 constant, so a name is spelled once — in the CSS — and referred to by symbol everywhere else. A typo
 is a compile error rather than a rule that silently matches nothing.
 
-A sheet colocated with a component generates into a partial of it, which is why `Button.css` gives
-`Button.Styles.Btn` and a component reaches its own classes as just `Styles.Btn`. Everything else
-generates into the shared `Ui` table:
+A sheet colocated with a component generates into a private `Styles` table nested in it, so
+`Button.css` gives `Styles.Btn` inside `Button` and nothing outside it can reach those classes. A
+component styles only its own nodes; a parent that wants to style a child passes its own class down
+through the child's props. Everything else generates into the shared `Ui` table:
 
 ```csharp
 new Pressable(
     Styles.Btn |
     Ui.Row |
-    (Styles.BtnSmall & (props.Size == ButtonSize.Small)) |
-    (RailPanel.Styles.RailPanelTall & tall))   // another component's class
+    (Styles.BtnSmall & (props.Size == ButtonSize.Small)))
 ```
 
 The component must be `partial` (warning **RUI0002** otherwise); generation is otherwise automatic and
@@ -798,7 +798,7 @@ a component's rules in:
 `:root`. A scope with no root selector (`@scope { … }`) has nothing to be rooted at here and is a
 diagnostic, as is an `@scope` written inside a style rule.
 
-The generated class constants are untouched by any of this — `Card.Styles.Label` is still the one
+The generated class constants are untouched by any of this — `Card`'s `Styles.Label` is still the one
 global `.label`. A scope bounds *where a rule applies*, not what the class is called.
 
 ### Layers and imports
@@ -945,6 +945,8 @@ their own content widths — and `flex: none`/`flex: auto` mean what CSS says. A
 **Visual** — `background-color` · `background` (colour only) · `background-image` · `opacity` ·
 `visibility` · `border` · `border-width`/`border-color`/`border-style` (+ per side) ·
 `border-radius` (+ per corner) · `box-shadow` · `color` · `-rui-checker` · `-rui-grid`
+
+**Scroll** — `scrollbar-width` · `scrollbar-color` (`scrollbar-thumb-color`/`scrollbar-track-color`)
 
 **Text**, all inherited — `font-family` · `font-size` · `font-weight` · `text-align` ·
 `vertical-align` · `white-space` · `line-height` · `letter-spacing` · `word-spacing` ·
@@ -1146,7 +1148,8 @@ answer under the Regular key, so the composite key the next lookup builds misses
 ## States and pseudo-classes
 
 Built in: `:hover` · `:active` · `:focus` · `:focus-visible` · `:disabled` · `:enter` · `:exit` ·
-`:root`. (`:first-child` and friends are recognised but inert — see [Limitations](#limitations).)
+`:root`. Structural: `:first-child` · `:last-child` · `:only-child` · `:nth-child(An+B)` ·
+`:nth-last-child(An+B)` · `:empty` — see [Structural pseudo-classes](#structural-pseudo-classes).
 
 ```css
 .btn:hover  { background-color: #463156; }
@@ -1167,7 +1170,8 @@ the title needs the restyle.
 ### There are no custom states
 
 The registry is closed: `:hover`, `:active`, `:focus`, `:focus-visible`, `:disabled`, `:enter`,
-`:exit`, `:root`, and the four structural ones. Every one of them is set by the framework, and a
+`:exit` and `:root`, plus the structural pseudo-classes, which are matched against the tree rather
+than held as state. Every one of them is set by the framework, and a
 pseudo-class the parser does not recognise is now a diagnostic rather than a bit nothing will ever
 set — a misspelled `:hovr` used to register cleanly and then silently never apply.
 
@@ -1185,6 +1189,32 @@ That is what the components in this project already did, and it has the advantag
 cannot offer: the class name is a generated constant, so a typo is a compile error.
 
 Changing classes costs a re-match; changing a framework state costs only a re-resolve.
+
+### Structural pseudo-classes
+
+```css
+.row:nth-child(odd)       { background-color: #241A2E; }
+.row:first-child          { border-top-width: 0; }
+.row:nth-last-child(-n+3) { opacity: 0.6; }      /* the last three */
+.list:empty               { display: none; }
+.row:first-child .label   { font-weight: 700; }  /* on an ancestor works too */
+```
+
+`:first-child`, `:last-child`, `:only-child`, `:nth-child(An+B)`, `:nth-last-child(An+B)` and
+`:empty`, with CSS semantics: `An+B` takes `odd`, `even`, `3`, `2n+1`, `-n+3` and the rest of the
+standard forms. Each one counts as one pseudo-class towards specificity.
+
+They are not state bits. A node's position is recorded when the reconciler places its parent's
+children, and the node is re-matched only when an answer a sheet actually asks changes — appending to
+a list re-matches the old last row and the new one, not the list. A node mounted somewhere other than
+first paints in its real position; it does not transition there from a guess.
+
+- **Position counts host siblings.** Components and fragments are flattened, as they are for `+` and
+  `~`, and a node playing its `:exit` has already left the count.
+- **`:empty` means no host children and, for a `Text`, no text.** A label whose content is `""` is
+  `:empty`; one with any text is not.
+- **Portalled content is positioned among the overlay's children,** not its logical parent's.
+- **Not supported:** `:nth-child(An+B of S)` and the `-of-type` family are each a diagnostic.
 
 ---
 
@@ -1501,6 +1531,20 @@ The `Scroll` node is the viewport, sized by the stylesheet. Its children lay out
 overflow it; the content rect is measured and resized after layout, and `ScrollRect` handles the
 rest.
 
+A scroll has no bar until its style gives one a width:
+
+```css
+.inventory {
+    scrollbar-width: 0.25rem;
+    scrollbar-color: var(--thumb) var(--track);
+}
+```
+
+`scrollbar-width` is a length rather than CSS's `auto`/`thin`/`none`, and zero (the default) draws no
+bar. `scrollbar-color` is `<thumb> <track>`, as in CSS. Each scrolling axis gets a uGUI `Scrollbar`
+over the viewport's edge — right for vertical, bottom for horizontal — which hides while the content
+fits, drags and pages like any uGUI bar, and never takes navigation focus.
+
 ```csharp
 new Portal { new View(Styles.Modal) { /* ... */ } }
 ```
@@ -1621,10 +1665,9 @@ Known and deliberate:
   unmounting the one that went away. Render fixed slots when a list can be edited in the middle; see
   [Identity is position](#identity-is-position). Appends, truncations and stable-length lists are
   fine as they are.
-- **Structural pseudo-classes are inert.** `:first-child`, `:last-child`, `:only-child` and `:empty`
-  are registered, so they parse and cost nothing — but nothing sets them yet, so a rule using one
-  never applies. `:nth-child(An+B)` and every other functional pseudo-class is rejected with a
-  diagnostic.
+- **No `:nth-child(An+B of S)` and no `-of-type` pseudo-classes.** Each is rejected with a
+  diagnostic, as is every functional pseudo-class other than `:nth-child()`, `:nth-last-child()` and
+  `:where(:scope)`.
 - **No id selectors.** `#hud { … }` is rejected with a diagnostic: there is no id, and a GameObject is
   named after its class. Use a class of its own, and note that specificity has two columns as a
   result — classes and pseudo-classes, then type names.

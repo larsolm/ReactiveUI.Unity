@@ -147,6 +147,20 @@ public class SelectorsTests
     }
 
     [Theory]
+    // The selector argument of `:nth-child(An+B of S)` is part of the selector's text, so it survives a
+    // round-trip through SelectorText rather than silently widening the match.
+    [InlineData(":nth-child(2n+1 of .a)", ":nth-child(2n+1 of .a)")]
+    [InlineData(":nth-last-child(odd of li.b)", ":nth-last-child(2n+1 of li.b)")]
+    [InlineData(":nth-child(3)", ":nth-child(0n+3)")]
+    public void NthChildTextKeepsItsSelector(string selector, string expectedText)
+    {
+        var sheet = new StylesheetParser().Parse(selector + " { color: red }");
+
+        Assert.Equal(1, sheet.Rules.Length);
+        Assert.Equal(expectedText, ((StyleRule)sheet.Rules[0]).SelectorText);
+    }
+
+    [Theory]
     // ::marker is a standard pseudo-element (CSS Lists 3 6.1). It was unregistered, so a rule using it
     // was rejected wholesale rather than parsed. Only the two-colon form exists - unlike ::before/::after,
     // ::marker has no one-colon legacy spelling.

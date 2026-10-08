@@ -45,16 +45,27 @@ namespace ReactiveUI
 		}
 
 		/// <summary>
-		/// Focuses <paramref name="target"/> once after this component mounts.
+		/// Focuses <paramref name="target"/> once after this component mounts, and makes it the default focus while it is mounted.
 		/// </summary>
+		/// <remarks>
+		/// The default is where focus lands when navigation starts or the focused element goes away.
+		/// The most recently mounted default in the active scope wins.
+		/// </remarks>
 		public static void UseAutoFocus(ElementRef target)
 		{
 			UseEffect(
 				(focus: Current().Focus, target),
 				static args =>
 				{
-					args.focus.Focus(args.target);
-					return null;
+					if (args.target._host is not { } host)
+						return null;
+
+					var focus = args.focus;
+
+					focus.AddDefault(host);
+					focus.Focus(host);
+
+					return () => focus.RemoveDefault(host);
 				});
 		}
 

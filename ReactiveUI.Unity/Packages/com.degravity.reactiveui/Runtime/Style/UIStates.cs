@@ -33,14 +33,9 @@ namespace ReactiveUI
 		// editor parses sheets at import time, long before one does.
 		internal static readonly StateBit s_root = Register("root");
 
-		// Structural. Registered so the selectors parse and hold their bits, but NOT yet maintained
-		// anywhere — nothing sets them, so a rule using one never matches. The intent is for the
-		// reconciler to keep them as it syncs children, which would let `li:first-child .label` work
-		// through the same ancestor-condition path as `:hover`.
-		internal static readonly StateBit s_firstChild = Register("first-child");
-		internal static readonly StateBit s_lastChild = Register("last-child");
-		internal static readonly StateBit s_onlyChild = Register("only-child");
-		internal static readonly StateBit s_empty = Register("empty");
+		// Structural pseudo-classes (`:first-child`, `:nth-child()`, `:empty`, …) are not state bits.
+		// They are their own selector kinds, matched against the node's position when the reconciler
+		// places it.
 
 		/// <summary>
 		/// Every registered pseudo-class name, in registration order.

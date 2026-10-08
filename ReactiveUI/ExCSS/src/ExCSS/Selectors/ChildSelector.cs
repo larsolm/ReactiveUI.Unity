@@ -25,7 +25,9 @@ namespace ExCSS
                 _ => string.Empty
             };
 
-            writer.Write(":{0}({1}n{2})", _name, a, b);
+            var of = Kind is null or AllSelector ? string.Empty : " of " + Kind.Text;
+
+            writer.Write(":{0}({1}n{2}{3})", _name, a, b, of);
         }
 
         public Priority Specificity => Priority.OneClass;

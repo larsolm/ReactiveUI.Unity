@@ -67,9 +67,9 @@ namespace ReactiveUI.Generators.Tests
 				("Assets/UI/Usage.cs", """
 					namespace Game.UI
 					{
-						public static class Usage
+						public partial struct Button
 						{
-							public static ReactiveUI.ClassName Label => Button.Styles.BtnLabel;
+							public static ReactiveUI.ClassName Label => Styles.BtnLabel;
 						}
 					}
 					"""));
@@ -80,8 +80,33 @@ namespace ReactiveUI.Generators.Tests
 			var source = result.Single();
 
 			Assert.Contains("partial struct Button", source);
-			Assert.Contains("public static class Styles", source);
+			Assert.Contains("private static class Styles", source);
 			Assert.Contains("BtnLabel = global::ReactiveUI.ClassName.Intern(\"btn__label\");", source);
+		}
+
+		[Fact]
+		public void ColocatedSheet_StylesTable_IsUnreachableFromOtherTypes()
+		{
+			var result = Run(
+				"""
+				sheet Assets/UI/Button.css
+				assembly Game.UI
+				namespace Game.UI
+				class btn
+				""",
+				("Assets/UI/Button.cs", Button),
+				("Assets/UI/Usage.cs", """
+					namespace Game.UI
+					{
+						public static class Usage
+						{
+							public static ReactiveUI.ClassName Btn => Button.Styles.Btn;
+						}
+					}
+					"""));
+
+			Assert.Empty(result.Diagnostics);
+			Assert.Contains(result.CompileDiagnostics, diagnostic => diagnostic.Id == "CS0122");
 		}
 
 		[Fact]
@@ -226,7 +251,7 @@ namespace ReactiveUI.Generators.Tests
 			var with = Run(manifest, ("Assets/UI/Button.cs", Button));
 
 			Assert.Contains("public static partial class Ui", without.Single());
-			Assert.Contains("public static class Styles", with.Single());
+			Assert.Contains("private static class Styles", with.Single());
 		}
 
 		[Fact]
@@ -290,6 +315,34 @@ namespace ReactiveUI.Generators.Tests
 
 			Assert.Empty(result.CompileDiagnostics);
 			Assert.Contains("[global::Unity.Scripting.LifecycleManagement.NoAutoStaticsCleanupAttribute] public static readonly", result.Single());
+		}
+
+		[Fact]
+		public void UnityStaticsCleanupAttribute_MarksAStylesTableOnce()
+		{
+			var result = Run(
+				"""
+				sheet Assets/UI/Button.css
+				assembly Game.UI
+				namespace Game.UI
+				class btn
+				class btn__label
+				""",
+				("Assets/UI/Button.cs", Button),
+				("Assets/Stub.cs", """
+					namespace Unity.Scripting.LifecycleManagement
+					{
+						public sealed class NoAutoStaticsCleanupAttribute : System.Attribute { }
+					}
+					"""));
+
+			Assert.Empty(result.CompileDiagnostics);
+
+			var source = result.Single();
+			const string attribute = "[global::Unity.Scripting.LifecycleManagement.NoAutoStaticsCleanupAttribute]";
+
+			Assert.Equal(2, source.Split(attribute).Length);
+			Assert.Matches(@"NoAutoStaticsCleanupAttribute\]\s+private static class Styles", source);
 		}
 
 		[Fact]

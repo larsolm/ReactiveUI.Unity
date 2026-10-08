@@ -8,7 +8,9 @@ namespace ReactiveUI
 	/// </summary>
 	/// <remarks>
 	/// The focused element matches <c>:focus</c>, and also <c>:focus-visible</c> while the
-	/// <see cref="InputModality"/> is <see cref="InputModality.Navigation"/>.
+	/// <see cref="InputModality"/> is <see cref="InputModality.Navigation"/>. While navigating, something
+	/// is always focused if anything can be: the latest default in the active scope, else the first
+	/// focusable element in tree order.
 	/// </remarks>
 	public sealed class FocusManager
 	{
@@ -21,6 +23,7 @@ namespace ReactiveUI
 
 		private readonly List<HostInstance> _focusable = new();
 		private readonly List<HostInstance> _scopes = new();
+		private readonly List<HostInstance> _defaults = new();
 
 		internal FocusManager()
 		{
@@ -37,9 +40,40 @@ namespace ReactiveUI
 		{
 			_focusable.Remove(host);
 			_scopes.Remove(host);
+			_defaults.Remove(host);
 
 			if (ReferenceEquals(Focused, host))
 				Focused = null;
+		}
+
+		internal void AddDefault(HostInstance host)
+		{
+			_defaults.Add(host);
+		}
+
+		internal void RemoveDefault(HostInstance host)
+		{
+			var index = _defaults.LastIndexOf(host);
+			if (index >= 0)
+				_defaults.RemoveAt(index);
+		}
+
+		/// <summary>
+		/// Moves focus to the default when navigating and the focused element has gone, been disabled or left the scope.
+		/// </summary>
+		/// <remarks>
+		/// Run once a frame after effects, so a screen that replaces the focused one hands focus to its
+		/// own default rather than leaving the player with nothing highlighted until they press again.
+		/// </remarks>
+		internal void Maintain()
+		{
+			if (InputModalityTracker.Current != InputModality.Navigation)
+				return;
+
+			if (Focused is not null && CanFocus(Focused))
+				return;
+
+			FocusDefault();
 		}
 
 		/// <summary>
@@ -122,17 +156,22 @@ namespace ReactiveUI
 		/// </summary>
 		/// <returns>Whether focus moved or the move was consumed.</returns>
 		/// <remarks>
-		/// When nothing is focused, focuses the first focusable element instead.
+		/// When nothing is focused, focuses the default instead.
 		/// </remarks>
 		public bool Move(Vector2 direction)
 		{
 			if (Focused is null || !CanFocus(Focused))
-				return FocusFirst();
+			{
+				InputModalityTracker.NoteNavigation();
+
+				return FocusDefault();
+			}
 
 			if (Focused is PressableHost { _onMove: { } consume } && consume(direction))
 				return true;
 
-			var origin = Centre(Focused);
+			var space = CanvasSpace(Focused);
+			var origin = Centre(Focused, space);
 			HostInstance? best = null;
 			var bestScore = float.MaxValue;
 
@@ -141,7 +180,7 @@ namespace ReactiveUI
 				var candidate = _focusable[i];
 				if (ReferenceEquals(candidate, Focused) || !CanFocus(candidate)) continue;
 
-				var delta = Centre(candidate) - origin;
+				var delta = Centre(candidate, space) - origin;
 				var along = Vector2.Dot(delta, direction);
 
 				// Anything level with or behind the origin is not in this direction.
@@ -189,19 +228,75 @@ namespace ReactiveUI
 			RevealInScroll(Focused);
 		}
 
-		private bool FocusFirst()
+		private bool FocusDefault()
 		{
-			for (var i = 0; i < _focusable.Count; i++)
+			for (var i = _defaults.Count - 1; i >= 0; i--)
 			{
-				if (!CanFocus(_focusable[i])) continue;
+				if (!CanFocus(_defaults[i])) continue;
 
-				InputModalityTracker.NoteNavigation();
-				Focus(_focusable[i]);
+				Focus(_defaults[i]);
 
 				return true;
 			}
 
-			return false;
+			HostInstance? first = null;
+
+			for (var i = 0; i < _focusable.Count; i++)
+			{
+				var candidate = _focusable[i];
+
+				if (CanFocus(candidate) && (first is null || Precedes(candidate, first)))
+					first = candidate;
+			}
+
+			if (first is null)
+				return false;
+
+			Focus(first);
+
+			return true;
+		}
+
+		/// <summary>
+		/// Whether <paramref name="first"/> comes before <paramref name="second"/> in tree order.
+		/// </summary>
+		/// <remarks>
+		/// Registration order is mount order, which puts anything inserted later — a conditional item
+		/// in the middle of a list — at the end.
+		/// </remarks>
+		private static bool Precedes(Instance first, Instance second)
+		{
+			var a = first;
+			var b = second;
+			var depthA = Depth(a);
+			var depthB = Depth(b);
+
+			for (; depthA > depthB; depthA--) a = a._parent!;
+			for (; depthB > depthA; depthB--) b = b._parent!;
+
+			// One is an ancestor of the other, and an ancestor comes first.
+			if (ReferenceEquals(a, b))
+				return Depth(first) < Depth(second);
+
+			while (!ReferenceEquals(a._parent, b._parent))
+			{
+				a = a._parent!;
+				b = b._parent!;
+			}
+
+			var siblings = a._parent?._children;
+
+			return siblings is not null && siblings.IndexOf(a) < siblings.IndexOf(b);
+		}
+
+		private static int Depth(Instance instance)
+		{
+			var depth = 0;
+
+			for (var current = instance._parent; current is not null; current = current._parent)
+				depth++;
+
+			return depth;
 		}
 
 		private bool CanFocus(HostInstance host)
@@ -259,15 +354,33 @@ namespace ReactiveUI
 			return false;
 		}
 
-		private static Vector2 Centre(HostInstance host)
+		/// <summary>
+		/// The root canvas a node draws on, whose local space is measured in UI pixels.
+		/// </summary>
+		/// <remarks>
+		/// World space is scaled by the canvas: on a camera or world canvas one unit can be dozens of
+		/// pixels, so a pixel threshold there throws away neighbours that sit right next to each other.
+		/// </remarks>
+		private static Transform? CanvasSpace(HostInstance host)
+		{
+			var canvas = host._rectTransform.GetComponentInParent<Canvas>();
+
+			return canvas != null ? canvas.rootCanvas.transform : null;
+		}
+
+		private static Vector2 Centre(HostInstance host, Transform? space)
 		{
 			var rect = host._rectTransform;
+			var world = rect.TransformPoint(rect.rect.center);
 
-			return rect.TransformPoint(rect.rect.center);
+			return space != null ? space.InverseTransformPoint(world) : world;
 		}
 
 		private void OnModalityChanged(InputModality modality)
 		{
+			if (modality == InputModality.Navigation && (Focused is null || !CanFocus(Focused)))
+				FocusDefault();
+
 			Focused?.SetState(UiStates.s_focusVisible, modality == InputModality.Navigation);
 		}
 

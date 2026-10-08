@@ -94,6 +94,7 @@ namespace ReactiveUI
 
 			InputDeviceTracker.Listen();
 			InputDeviceTracker.Changed += OnInputDeviceChanged;
+			InputModalityTracker.Changed += OnModalityChanged;
 
 			var overlayObject = new GameObject("ReactiveUIOverlay", typeof(RectTransform));
 			var overlayRect = overlayObject.GetComponent<RectTransform>();
@@ -193,7 +194,7 @@ namespace ReactiveUI
 		{
 			if (instance is HostInstance host)
 			{
-				host.SetState(UiStates.s_hover, false);
+				host.SetPointerInside(false);
 				host.SetState(UiStates.s_active, false);
 			}
 
@@ -202,6 +203,27 @@ namespace ReactiveUI
 
 			for (var i = 0; i < instance._children.Count; i++)
 				ClearPointerStates(instance._children[i]);
+		}
+
+		/// <remarks>
+		/// Navigating hides the hover under a resting pointer, so only the focused element is lit; the
+		/// pointer moving again brings it back.
+		/// </remarks>
+		private void OnModalityChanged(InputModality modality)
+		{
+			RefreshHover(_root);
+		}
+
+		private static void RefreshHover(Instance instance)
+		{
+			if (instance is HostInstance host)
+				host.RefreshHover();
+
+			if (instance._children is null)
+				return;
+
+			for (var i = 0; i < instance._children.Count; i++)
+				RefreshHover(instance._children[i]);
 		}
 
 		private void UpdateFrame()
@@ -242,6 +264,9 @@ namespace ReactiveUI
 
 			using (UiMarkers.Effects.Auto())
 				_scheduler.FlushEffects();
+
+			// After effects, so a screen's own default focus mounts before the fallback is chosen.
+			_focus.Maintain();
 
 			// Every element declared this frame is dead now: the instances hold the committed props,
 			// the hosts hold the captured inline entries, and nothing below reads an element again.
@@ -441,6 +466,7 @@ namespace ReactiveUI
 				_sheetSource.Changed -= OnStyleSheetsChanged;
 
 			InputDeviceTracker.Changed -= OnInputDeviceChanged;
+			InputModalityTracker.Changed -= OnModalityChanged;
 			_factory.BeginShutdown();
 			_reconciler.ReconcileRoot(_root, default);
 			_scheduler.Clear();

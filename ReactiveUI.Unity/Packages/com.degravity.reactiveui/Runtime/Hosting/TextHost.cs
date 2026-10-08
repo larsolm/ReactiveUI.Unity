@@ -69,6 +69,8 @@ namespace ReactiveUI
 	{
 		internal override HostKind Kind => HostKind.Text;
 
+		internal override bool HasContent => !string.IsNullOrEmpty(_content);
+
 		private readonly Dictionary<long, YogaSize> _measureCache = new();
 
 		private TextMeshProUGUI _tmp = null!;
@@ -89,6 +91,10 @@ namespace ReactiveUI
 		{
 			var content = ElementPool.Props<TextProps>(node).Content ?? string.Empty;
 			if (string.Equals(content, _content)) return;
+
+			// Content is what makes a Text not `:empty`, so gaining or losing it re-matches the node.
+			if (string.IsNullOrEmpty(content) != string.IsNullOrEmpty(_content))
+				_matchDirty = true;
 
 			_content = content;
 			ApplyContent();

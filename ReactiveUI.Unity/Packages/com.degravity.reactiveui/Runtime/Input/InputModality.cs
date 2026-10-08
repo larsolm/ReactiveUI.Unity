@@ -1,5 +1,6 @@
 ﻿using System;
 using Unity.Scripting.LifecycleManagement;
+using UnityEngine;
 
 namespace ReactiveUI
 {
@@ -31,6 +32,17 @@ namespace ReactiveUI
 		/// </summary>
 		public static event Action<InputModality> Changed = null!;
 
+		private static int s_changedFrame = -1;
+
+		/// <summary>
+		/// Whether navigation became the modality during this frame.
+		/// </summary>
+		/// <remarks>
+		/// The input that switches to navigation only reveals focus. Every runtime reads the same input,
+		/// so each one asks this instead of remembering whether it was the one that switched.
+		/// </remarks>
+		internal static bool NavigationBeganThisFrame => Current == InputModality.Navigation && s_changedFrame == Time.frameCount;
+
 		/// <summary>
 		/// Called when a pointer moves or clicks.
 		/// </summary>
@@ -53,7 +65,8 @@ namespace ReactiveUI
 				return;
 
 			Current = modality;
-			Changed.Invoke(modality);
+			s_changedFrame = Time.frameCount;
+			Changed?.Invoke(modality);
 		}
 	}
 }

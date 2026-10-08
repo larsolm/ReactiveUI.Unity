@@ -190,6 +190,14 @@ namespace ReactiveUI
 			Add("animation-direction", PropId.AnimationDirection, ValueSyntax.Keyword, keywords: KeywordSet.AnimationDirection);
 			Add("animation-fill-mode", PropId.AnimationFillMode, ValueSyntax.Keyword, keywords: KeywordSet.AnimationFillMode);
 			Add("animation-play-state", PropId.AnimationPlayState, ValueSyntax.Keyword, keywords: KeywordSet.AnimationPlayState);
+
+			// ---- Scroll ----
+			// Read only by a Scroll node, which draws its bars from them. `scrollbar-width` takes a
+			// length rather than CSS's auto/thin/none, and zero (the default) draws no bar. The colours
+			// are the longhands of CSS's `scrollbar-color: <thumb> <track>`, which expands into them.
+			Add("scrollbar-width", PropId.ScrollbarWidth, ValueSyntax.Length);
+			Add("scrollbar-thumb-color", PropId.ScrollbarThumbColor, ValueSyntax.Color);
+			Add("scrollbar-track-color", PropId.ScrollbarTrackColor, ValueSyntax.Color);
 		}
 
 		private static void Add(string name, PropId id, ValueSyntax syntax, bool inherited = false, KeywordSet keywords = KeywordSet.None)

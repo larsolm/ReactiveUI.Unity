@@ -10,12 +10,12 @@ namespace ReactiveUI
 
 		public void OnPointerEnter(PointerEventData eventData)
 		{
-			Host?.SetState(UiStates.s_hover, true);
+			Host?.SetPointerInside(true);
 		}
 
 		public void OnPointerExit(PointerEventData eventData)
 		{
-			Host?.SetState(UiStates.s_hover, false);
+			Host?.SetPointerInside(false);
 			Host?.SetState(UiStates.s_active, false);
 		}
 

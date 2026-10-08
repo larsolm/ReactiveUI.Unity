@@ -33,7 +33,7 @@ namespace ReactiveUI
 	internal static class StyleSheetSerializer
 	{
 		/// <summary>Bumped whenever the layout below changes.</summary>
-		internal const int FormatVersion = 3;
+		internal const int FormatVersion = 4;
 
 		private const uint Magic = 0x53535552; // "RUSS"
 

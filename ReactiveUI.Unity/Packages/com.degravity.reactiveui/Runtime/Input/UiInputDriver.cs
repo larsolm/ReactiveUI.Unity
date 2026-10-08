@@ -92,8 +92,25 @@ namespace ReactiveUI
 
 		private void Navigate(Vector2 direction)
 		{
-			InputModalityTracker.NoteNavigation();
+			if (BeginNavigation())
+				return;
+
 			_focus.Move(direction);
+		}
+
+		/// <summary>
+		/// Switches to navigation, and reports whether this input was the one that switched.
+		/// </summary>
+		/// <remarks>
+		/// The input that switches only reveals where focus is. Focus can sit somewhere unseen while
+		/// the pointer is in use, so moving from it or pressing it would act on something the player
+		/// never saw highlighted.
+		/// </remarks>
+		private static bool BeginNavigation()
+		{
+			InputModalityTracker.NoteNavigation();
+
+			return InputModalityTracker.NavigationBeganThisFrame;
 		}
 
 		private Vector2 ReadDirection()
@@ -141,10 +158,9 @@ namespace ReactiveUI
 					|| (Keyboard.current?.spaceKey.wasPressedThisFrame ?? false)
 					|| (Gamepad.current?.buttonSouth.wasPressedThisFrame ?? false);
 
-			if (!pressed)
+			if (!pressed || BeginNavigation())
 				return;
 
-			InputModalityTracker.NoteNavigation();
 			_focus.Submit();
 		}
 
@@ -159,8 +175,10 @@ namespace ReactiveUI
 
 			foreach (var control in keyboard.allKeys)
 			{
-				if (control.wasPressedThisFrame)
-					_hotkeys.Dispatch(control.keyCode);
+				// Noted after the listener but still before this frame's render, which is what styles
+				// anything the hotkey mounts.
+				if (control.wasPressedThisFrame && _hotkeys.Dispatch(control.keyCode))
+					InputModalityTracker.NoteNavigation();
 			}
 		}
 	}
