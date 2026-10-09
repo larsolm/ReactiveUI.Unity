@@ -19,6 +19,7 @@ namespace ReactiveUI
 		internal Action? _onHoverEnter;
 		internal Action? _onHoverExit;
 		internal Func<Vector2, bool>? _onMove;
+		internal Action<Vector2>? _onDragAt;
 		internal bool _disabled;
 		internal bool _focusable = true;
 
@@ -48,6 +49,7 @@ namespace ReactiveUI
 			_onHoverEnter = props.OnHoverEnter;
 			_onHoverExit = props.OnHoverExit;
 			_onMove = props.OnMove;
+			_onDragAt = props.OnDragAt;
 			_disabled = props.Disabled;
 			_focusable = !props.Unfocusable;
 
@@ -65,6 +67,7 @@ namespace ReactiveUI
 			_onHoverEnter = null;
 			_onHoverExit = null;
 			_onMove = null;
+			_onDragAt = null;
 			_disabled = false;
 			_focusable = true;
 
@@ -74,9 +77,12 @@ namespace ReactiveUI
 	}
 
 	internal sealed class PressableBehaviour : MonoBehaviour,
-		IPointerClickHandler, IPointerDownHandler, IPointerUpHandler, IPointerEnterHandler, IPointerExitHandler
+		IPointerClickHandler, IPointerDownHandler, IPointerUpHandler, IPointerEnterHandler, IPointerExitHandler,
+		IInitializePotentialDragHandler, IBeginDragHandler, IDragHandler
 	{
 		internal PressableHost? _host;
+
+		private bool Drags => _host is { _disabled: false, _onDragAt: not null };
 
 		void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
 		{
@@ -89,13 +95,7 @@ namespace ReactiveUI
 				_host.Focus();
 
 			_host._onClick?.Invoke();
-
-			if (_host._onClickAt is null)
-				return;
-
-			RectTransformUtility.ScreenPointToLocalPointInRectangle(
-				_host._rectTransform, eventData.position, eventData.pressEventCamera, out var local);
-			_host._onClickAt.Invoke(local);
+			_host._onClickAt?.Invoke(PointFromTopLeft(eventData));
 		}
 
 		void IPointerDownHandler.OnPointerDown(PointerEventData eventData)
@@ -105,6 +105,63 @@ namespace ReactiveUI
 
 			_host.SetState(UiStates.s_active, true);
 			_host._onPressDown?.Invoke();
+
+			if (_host._onDragAt is not null)
+			{
+				InputModalityTracker.NotePointer();
+				_host._onDragAt.Invoke(PointFromTopLeft(eventData));
+			}
+		}
+
+		void IInitializePotentialDragHandler.OnInitializePotentialDrag(PointerEventData eventData)
+		{
+			if (Drags)
+			{
+				eventData.useDragThreshold = false;
+				return;
+			}
+
+			// The module routes every drag event to the nearest drag handler, which is now this
+			// element, so a non-dragging pressable hands the drag on to its ancestors (e.g. a Scroll).
+			var parent = AncestorHandler<IInitializePotentialDragHandler>();
+			if (parent != null)
+				ExecuteEvents.Execute(parent, eventData, ExecuteEvents.initializePotentialDrag);
+		}
+
+		void IBeginDragHandler.OnBeginDrag(PointerEventData eventData)
+		{
+			if (Drags)
+				return;
+
+			eventData.pointerDrag = AncestorHandler<IDragHandler>();
+
+			if (eventData.pointerDrag != null)
+				ExecuteEvents.Execute(eventData.pointerDrag, eventData, ExecuteEvents.beginDragHandler);
+		}
+
+		void IDragHandler.OnDrag(PointerEventData eventData)
+		{
+			if (Drags)
+				_host!._onDragAt!.Invoke(PointFromTopLeft(eventData));
+		}
+
+		private GameObject? AncestorHandler<T>() where T : IEventSystemHandler
+		{
+			var parent = transform.parent;
+
+			return parent == null ? null : ExecuteEvents.GetEventHandler<T>(parent.gameObject);
+		}
+
+		private Vector2 PointFromTopLeft(PointerEventData eventData)
+		{
+			var rectTransform = _host!._rectTransform;
+			var camera = eventData.pressEventCamera != null ? eventData.pressEventCamera : eventData.enterEventCamera;
+
+			RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, eventData.position, camera, out var local);
+
+			var rect = rectTransform.rect;
+
+			return new Vector2(local.x - rect.xMin, rect.yMax - local.y);
 		}
 
 		void IPointerUpHandler.OnPointerUp(PointerEventData eventData)

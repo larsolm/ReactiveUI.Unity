@@ -8,7 +8,7 @@ namespace ReactiveUI
 	/// Props for <see cref="Pressable"/>.
 	/// </summary>
 	/// <param name="OnClick">Invoked when the element is clicked or submitted while focused.</param>
-	/// <param name="OnClickAt">Invoked on click with the pointer position in the element's local space.</param>
+	/// <param name="OnClickAt">Invoked on click with the pointer position from the element's top-left corner, y down.</param>
 	/// <param name="OnPressDown">Invoked when a press begins.</param>
 	/// <param name="OnPressUp">Invoked when a press ends.</param>
 	/// <param name="OnHoverEnter">Invoked when the pointer enters the element.</param>
@@ -17,6 +17,8 @@ namespace ReactiveUI
 	/// <param name="Unfocusable">Whether focus navigation skips the element.</param>
 	/// <param name="OnMove">Invoked with the navigation direction while the element is focused; return true to consume it.
 	/// </param>
+	/// <param name="OnDragAt">Invoked on press and while dragging with the pointer position from the element's top-left
+	/// corner, y down. Setting it keeps drags from reaching ancestors.</param>
 	public readonly record struct PressableProps(
 		Action? OnClick = null,
 		Action<Vector2>? OnClickAt = null,
@@ -26,7 +28,8 @@ namespace ReactiveUI
 		Action? OnHoverExit = null,
 		bool Disabled = false,
 		bool Unfocusable = false,
-		Func<Vector2, bool>? OnMove = null
+		Func<Vector2, bool>? OnMove = null,
+		Action<Vector2>? OnDragAt = null
 	);
 
 	/// <summary>
