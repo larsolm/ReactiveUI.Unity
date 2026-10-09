@@ -360,7 +360,7 @@ namespace ReactiveUI
 
 				// Unclamped, because --out-back overshoots its endpoints on purpose.
 				if (MotionChannels.IsColor(tracks[i].Channel))
-					target.WriteMotion(tracks[i].Channel, Color.LerpUnclamped(from.Color, to.Color, local));
+					target.WriteMotion(tracks[i].Channel, MotionChannels.Lerp(from.Color, to.Color, local));
 				else
 					target.WriteMotion(tracks[i].Channel, Mathf.LerpUnclamped(from.Number, to.Number, local));
 			}

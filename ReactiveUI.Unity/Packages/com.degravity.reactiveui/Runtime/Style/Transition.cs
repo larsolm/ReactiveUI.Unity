@@ -141,6 +141,29 @@ namespace ReactiveUI
 		internal static float ToFloat(in StyleValue value, in StyleContext ctx) =>
 			value.Kind == StyleValueKind.Length ? ctx.Resolve(value.AsLength()) : value.AsNumber();
 
+		/// <summary>
+		/// Interpolates two colours in premultiplied-alpha space, as CSS does.
+		/// </summary>
+		/// <remarks>
+		/// A straight lerp between colours of different alpha overshoots: halfway from a dark 70%
+		/// fill to a 10% tint it paints the half-mixed colour at 40%, several times more of the tint
+		/// than either end shows, which reads as a flash. Weighting each colour by its own alpha first
+		/// keeps the visible contribution moving monotonically between the two.
+		/// </remarks>
+		internal static Color Lerp(Color from, Color to, float t)
+		{
+			var alpha = Mathf.LerpUnclamped(from.a, to.a, t);
+
+			if (alpha <= 0f)
+				return new Color(to.r, to.g, to.b, 0f);
+
+			var red = Mathf.LerpUnclamped(from.r * from.a, to.r * to.a, t) / alpha;
+			var green = Mathf.LerpUnclamped(from.g * from.a, to.g * to.a, t) / alpha;
+			var blue = Mathf.LerpUnclamped(from.b * from.a, to.b * to.a, t) / alpha;
+
+			return new Color(red, green, blue, alpha);
+		}
+
 		private static readonly Color s_transparent = new(0f, 0f, 0f, 0f);
 	}
 
@@ -209,7 +232,7 @@ namespace ReactiveUI
 			var timing = spec;
 			_tween = Tween.Custom(0f, 1f, spec.Duration, progress =>
 			{
-				_current = Color.LerpUnclamped(from, target, timing.Ease(progress));
+				_current = MotionChannels.Lerp(from, target, timing.Ease(progress));
 				apply(_current);
 			}, PrimeTween.Ease.Linear, startDelay: spec.Delay, useUnscaledTime: TransitionTime.Unscaled);
 		}
